@@ -59,6 +59,7 @@ if options.verbose:
     print('Number of MCMC steps: ', options.nsteps)
     print('Number of MCMC walkers: ', options.walkers)
     print('Number of MCMC burn-in samples: ', options.burnin)
+    print('MCMC samples file name: ', options.samples_filename)
 
 calib_order = int(options.calib_order)
 
