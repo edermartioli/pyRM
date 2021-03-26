@@ -10,9 +10,8 @@
     
     Simple usage examples:
     
-    python ./rm_fit.py --pattern=data/HD189733*.rdb --exoplanet_priors=HD189733.pars --calib_priors= -v
+    python ./rm_fit.py --input=data/HD189733*.rdb --exoplanet_priors=priors/HD189733.pars --calib_order=1  --nsteps=400 --walkers=30 --burnin=150 --samples_filename=hd189733_mcmc_samples.h5 -v
 
-    python ./rm_fit.py --pattern=data/HD209458_smm.rdb --exoplanet_priors=priors/HD209458.pars -v
     """
 
 __version__ = "1.0"
@@ -35,9 +34,15 @@ from astropy.io import ascii
 import emcee
 
 parser = OptionParser()
-parser.add_option("-p", "--pattern", dest="pattern", help="RV data pattern",type='string',default="*.rdb")
+parser.add_option("-i", "--input", dest="input", help="Input RV data files",type='string',default="*.rdb")
 parser.add_option("-e", "--exoplanet_priors", dest="exoplanet_priors", help="File containing exoplanet priors",type='string',default="")
 parser.add_option("-c", "--calib_priors", dest="calib_priors", help="File containing calibration priors",type='string',default="")
+parser.add_option("-o", "--calib_order", dest="calib_order", help="Order of calibration polynomial",type='string',default="1")
+parser.add_option("-n", "--nsteps", dest="nsteps", help="Number of MCMC steps",type='string',default="300")
+parser.add_option("-w", "--walkers", dest="walkers", help="Number of MCMC walkers",type='string',default="32")
+parser.add_option("-b", "--burnin", dest="burnin", help="Number of MCMC burn-in samples",type='string',default="100")
+parser.add_option("-s", "--samples_filename", dest="samples_filename", help="MCMC samples file name",type='string',default="")
+parser.add_option("-p", action="store_true", dest="plot", help="plot", default=False)
 parser.add_option("-v", action="store_true", dest="verbose", help="verbose", default=False)
 
 try:
@@ -47,9 +52,15 @@ except:
     sys.exit(1)
 
 if options.verbose:
-    print('RV data pattern: ', options.pattern)
+    print('Input RV data files: ', options.input)
     print('Exoplanet priors file: ', options.exoplanet_priors)
     print('Calibration priors file: ', options.calib_priors)
+    print('Order of calibration: ', options.calib_order)
+    print('Number of MCMC steps: ', options.nsteps)
+    print('Number of MCMC walkers: ', options.walkers)
+    print('Number of MCMC burn-in samples: ', options.burnin)
+
+calib_order = int(options.calib_order)
 
 planet_posterior = (options.exoplanet_priors).replace(".pars", "_posterior.pars")
 if options.verbose:
@@ -66,7 +77,7 @@ if options.verbose:
 # make list of tfits data files
 if options.verbose:
     print("Creating list of RV time series files...")
-inputdata = sorted(glob.glob(options.pattern))
+inputdata = sorted(glob.glob(options.input))
 
 # Load data
 bjd, rvs, rverrs  = [], [], []
@@ -95,7 +106,7 @@ if options.calib_priors != "" :
     calib_params = priorslib.read_calib_params(calib_priors)
 else :
 #if no priors file is provided then make a guess
-    calib_priors = priorslib.init_calib_priors(ndim=len(inputdata), order=3)
+    calib_priors = priorslib.init_calib_priors(ndim=len(inputdata), order=calib_order)
     calib_params = priorslib.read_calib_params(calib_priors)
     for i in range(len(rvs)) :
         coeff_name = 'd{0:02d}c0'.format(i)
@@ -136,15 +147,23 @@ plt.show()
 """
 
 #- initialize emcee sampler
-amp, ndim, nwalkers, niter, burnin = 5e-4, len(theta), 32, 2000, 500
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args = [theta_priors, labels, calib_params, planet_params, bjd, rvs, rverrs])
+amp, ndim, nwalkers, niter, burnin = 5e-4, len(theta), int(options.walkers), int(options.nsteps), int(options.burnin)
+
+# Set up the backend
+if options.samples_filename != "":
+    backend = emcee.backends.HDFBackend(options.samples_filename)
+    backend.reset(nwalkers, ndim)
+else :
+    backend = None
+
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args = [theta_priors, labels, calib_params, planet_params, bjd, rvs, rverrs], backend=backend)
 pos = [theta + amp * np.random.randn(ndim) for i in range(nwalkers)]
 #--------
 
 #- run mcmc
 if options.verbose:
     print("Running MCMC ...")
-sampler.run_mcmc(pos, niter)
+sampler.run_mcmc(pos, niter, progress=True)
 samples = sampler.chain[:, burnin:, :].reshape((-1, ndim)) # burnin : number of first samples to be discard as burn-in
 #--------
 
@@ -174,9 +193,10 @@ if options.verbose:
 #bjd_limits=[2458651.85,2458652.20]
 bjd_limits=[]
 
-# plot each dataset with the best model
-for i in range(len(bjd)) :
-    rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels,bjd_limits=bjd_limits, detach_calib=False)
+if options.plot :
+    # plot each dataset with the best model
+    for i in range(len(bjd)) :
+        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels,bjd_limits=bjd_limits, detach_calib=False)
 
 # save posterior of planet parameters into file:
 priorslib.save_posterior(planet_posterior, planet_params, planet_theta_fit, planet_theta_labels, planet_theta_err)
@@ -185,10 +205,12 @@ priorslib.save_posterior(planet_posterior, planet_params, planet_theta_fit, plan
 ncoeff=calib_priors['orderOfPolynomial']['object'].value
 priorslib.save_posterior(calib_posterior, calib_params, calib_theta_fit, calib_theta_labels, calib_theta_err, calib=True, ncoeff=ncoeff)
 
-#- make a pairs plot from MCMC output:
-rm_lib.pairs_plot(samples, labels)
-#--------
+if options.plot :
+    #- make a pairs plot from MCMC output:
+    rm_lib.pairs_plot(samples, labels)
+    #--------
 
-#- perform analysis of residuals:
-rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output="")
-#--------
+if options.plot :
+    #- perform analysis of residuals:
+    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output="")
+    #--------
