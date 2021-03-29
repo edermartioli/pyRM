@@ -12,7 +12,7 @@ python ./rm_fit.py --input=data/HD189733_t2-K2mask-filtered_ccf.rdb
 
 The following input options are available:
 ```
---pattern to input data pattern (e.g., --pattern=*rdb.fits).
+--input to input data pattern (e.g., --input=*rdb.fits).
 --exoplanet_priors to input file containing exoplanet priors (e.g., --exoplanet_priors=HD189733.pars)
 --calib_priors to input file containing calibration priors (e.g., --calib_priors=calib.pars)
 --calib_order to input the order of the polynomial that is added to the model for the calibration of each input dataset
