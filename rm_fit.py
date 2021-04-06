@@ -93,10 +93,6 @@ for i in range(len(inputdata)) :
 planet_priors = priorslib.read_priors(options.exoplanet_priors)
 planet_params = priorslib.read_exoplanet_params(planet_priors)
 
-#calculate predicted center of transit for the first data set
-epoch = round((bjd[0][0] - planet_params['tau']) / (planet_params['per']))
-ref_time = planet_params['tau'] + epoch * planet_params['per']
-
 # print out planet priors
 if options.verbose:
     print("----------------")
@@ -154,8 +150,8 @@ if options.verbose:
 for i in range(len(bjd)) :
     calib = rm_lib.calib_model(len(bjd), i, calib_params, bjd[i])
     rvcurve = rm_lib.rv_model(planet_params, bjd[i])
-    plt.plot(bjd[i]+ref_time,rvcurve + calib, '-')
-    plt.errorbar(bjd[i]+ref_time, rvs[i], yerr=rverrs[i], fmt='o')
+    plt.plot(bjd[i],rvcurve + calib, '-')
+    plt.errorbar(bjd[i], rvs[i], yerr=rverrs[i], fmt='o')
 plt.show()
 exit()
 """
@@ -201,7 +197,6 @@ if options.verbose:
     print("----------------")
 
 bjd_limits=[]
-#bjd_limits=[ref_time-1.,ref_time+1.]
 
 if options.plot :
     #plot all data sets
