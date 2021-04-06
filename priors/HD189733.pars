@@ -3,6 +3,7 @@
 #   id  Uniform min_value,max_value
 #   id  Jeffreys min_value,max_value
 #   id  Normal mean,sigma
+#   id  Normal_positive mean,sigma
 #
 # Parameter_ID    Prior_Type    Hyperparameters  Initial_guess(optional)
 #
@@ -13,10 +14,10 @@ omega   FIXED   90.0
 ecc     FIXED   0.0041
 rv0     FIXED   0.
 #rv0     FIXED   -2.317
-lambda     Uniform   -0.18,0.18
-vsini     Normal   3.316,0.070
-a_R	FIXED	8.85592
-inc	FIXED	1.488766
-r_R	FIXED	0.1581
-omega_rm	FIXED	3.1415926
-ldc	Uniform	-0.5,0.5
+lambda     Uniform   -180,180
+vsini   Normal_positive  3.316,0.070
+a_R FIXED   8.85592
+inc FIXED   85.300008482573515
+r_R FIXED   0.1581
+omega_rm    FIXED   180
+ldc Uniform -1.0,1.0
