@@ -233,12 +233,9 @@ def pairs_plot(samples, labels, calib_params, planet_params, output='', addlabel
 
     newlabels = []
     for lab in labels :
-        print(lab)
         if lab in calib_params.keys():
-            print(lab, "=", calib_params[lab])
             truths.append(calib_params[lab])
         elif lab in planet_params.keys():
-            print(lab, "=", planet_params[lab])
             truths.append(planet_params[lab])
 
         if lab == "vsini":
