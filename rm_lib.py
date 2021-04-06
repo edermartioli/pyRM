@@ -21,7 +21,8 @@ import numpy as np
 import corner
 import matplotlib.pyplot as plt
 from scipy import stats
-
+from copy import deepcopy
+import matplotlib
 
 def vradfction(t,k,tp,omega,T0,V0,e):
 
@@ -42,7 +43,7 @@ def vradfction(t,k,tp,omega,T0,V0,e):
     
     return [vrad,phase,anovraie]
 
-           
+
 def gfunction(x,etap,gamma):
     fg=(1.-x**2)*np.arcsin(np.sqrt((gamma**2-(x-1.-etap)**2)/(1.-x**2)))+np.sqrt((gamma**2-(x-1.-etap)**2)*(1.-x**2-gamma**2+(x-1.-etap)**2))
     return fg
@@ -124,17 +125,17 @@ def rv_model(planet_params, bjd) :
     per = planet_params['per']
     tau = planet_params['tau']
     k = planet_params['k']
-    omega = planet_params['omega']
+    omega = planet_params['omega'] * np.pi / 180.
     ecc = planet_params['ecc']
     rv0 = planet_params['rv0']
-    lambdap = planet_params['lambda']
+    lambdap = planet_params['lambda'] * np.pi / 180.
     vsini = planet_params['vsini']
     a_R = planet_params['a_R']
-    inc = planet_params['inc']
+    inc = planet_params['inc'] * np.pi / 180.
     r_R = planet_params['r_R']
-    omega_rm = planet_params['omega_rm']
+    omega_rm = planet_params['omega_rm'] * np.pi / 180.
     ldc = planet_params['ldc']
-         
+    
     model = []
 
     keplerian = vradfction(bjd, k, per, omega, tau, rv0, ecc)
@@ -177,6 +178,8 @@ def updateParams(params, theta, labels) :
 #likelihood function
 def lnlike(theta, labels, calib_params, planet_params, bjd, rvs, rverrs):
     
+    prior_planet_params = deepcopy(planet_params)
+    
     planet_params = updateParams(planet_params, theta, labels)
     calib_params = updateParams(calib_params, theta, labels)
 
@@ -186,6 +189,16 @@ def lnlike(theta, labels, calib_params, planet_params, bjd, rvs, rverrs):
         calib = calib_model(len(bjd), i, calib_params, bjd[i])
         rvcurve = calib + rv_model(planet_params, bjd[i])
         residuals = rvs[i] - rvcurve
+        
+        for key in prior_planet_params.keys() :
+            if ("_err" not in key) and ("_pdf" not in key) :
+                pdf_key = "{0}_pdf".format(key)
+                if prior_planet_params[pdf_key] == "Normal" :
+                    error_key = "{0}_err".format(key)
+                    error = prior_planet_params[error_key][1]
+                    param_chi2 = ((planet_params[key] - prior_planet_params[key])/error)**2
+                    sum_of_residuals += param_chi2
+    
         sum_of_residuals += np.sum((residuals/rverrs[i])**2 + np.log(2.0 * np.pi * (rverrs[i] * rverrs[i])))
 
     ln_likelihood = -0.5 * (sum_of_residuals)
@@ -204,35 +217,74 @@ def lnprior(theta_priors, theta, labels):
 
     for i in range(len(theta)) :
         #theta_priors[labels[i]]['object'].set_value(theta[i])
-        if theta_priors[labels[i]]['type'] == "Uniform" or theta_priors[labels[i]]['type'] == "Jeffreys" :
+        if theta_priors[labels[i]]['type'] == "Uniform" or theta_priors[labels[i]]['type'] == "Jeffreys" or theta_priors[labels[i]]['type'] == "Normal_positive" :
             if not theta_priors[labels[i]]['object'].check_value(theta[i]):
                 return -np.inf
-            total_prior += theta_priors[labels[i]]['object'].get_ln_prior()
+        total_prior += theta_priors[labels[i]]['object'].get_ln_prior()
+        
     return total_prior
 
 
 #make a pairs plot from MCMC output
-def pairs_plot(samples, labels, output='') :
-    fig = corner.corner(samples, labels = labels)
+def pairs_plot(samples, labels, calib_params, planet_params, output='', addlabels=True) :
+    truths=[]
+    font = {'size': 15}
+    matplotlib.rc('font', **font)
+
+    newlabels = []
+    for lab in labels :
+        print(lab)
+        if lab in calib_params.keys():
+            print(lab, "=", calib_params[lab])
+            truths.append(calib_params[lab])
+        elif lab in planet_params.keys():
+            print(lab, "=", planet_params[lab])
+            truths.append(planet_params[lab])
+
+        if lab == "vsini":
+            newlabels.append(r"v$_{e}$sin(i) [km/s]")
+        elif lab == "r_R":
+            newlabels.append(r"R$_{p}$/R$_{\star}$")
+        elif lab == "lambda":
+            newlabels.append(r"$\lambda$ [$^{\circ}$]")
+        elif lab == "tau":
+            newlabels.append(r"T$_{c}$ [d]")
+        elif lab == "d00c1":
+            newlabels.append(r"$\gamma$ [km/s]")
+        elif lab == "d00c0":
+            newlabels.append(r"$\alpha$ [km/s/d]")
+        else :
+            newlabels.append(lab)
+    
+    if addlabels :
+        fig = corner.corner(samples, labels=newlabels, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84], truths=truths)
+    else :
+        fig = corner.corner(samples, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84],truths=truths)
     plt.show()
     if output != '' :
-        fig.savefig(output)   # save the figure to file
+        fig.savefig(output)
         plt.close(fig)
 
 
-#- Derive best-fit params and their 1-sigm a error bars
-def best_fit_params(params, free_param_labels, samples, verbose = False) :
-    
-    func = lambda v: (v[1], v[2]-v[1], v[1]-v[0])
-    
-    percents = np.percentile(samples, [16, 50, 84], axis=0)
 
-    seq = list(zip(*percents))
-    
-    values = list(map(func, seq))
-    
+#- Derive best-fit params and their 1-sigm a error bars
+def best_fit_params(params, free_param_labels, samples, use_mean=False, verbose = False) :
+
     theta, theta_labels, theta_err = [], [], []
     
+    if use_mean :
+        npsamples = np.array(samples)
+        values = []
+        for i in range(len(samples[0])) :
+            mean = np.mean(npsamples[:,i])
+            err = np.std(npsamples[:,i])
+            values.append([mean,err,err])
+    else :
+        func = lambda v: (v[1], v[2]-v[1], v[1]-v[0])
+        percents = np.percentile(samples, [16, 50, 84], axis=0)
+        seq = list(zip(*percents))
+        values = list(map(func, seq))
+
     for i in range(len(values)) :
         if free_param_labels[i] in params.keys() :
             theta.append(values[i][0])
@@ -248,11 +300,14 @@ def best_fit_params(params, free_param_labels, samples, verbose = False) :
 
 
 #plot model and data
-def plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels, bjd_limits=[], detach_calib=False) :
+def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_calib_params, samples, labels, bjd_limits=[], detach_calib=False) :
 
     plt.subplot(211)
     
     median_rv = np.median(rvs[i])
+    
+    calib_params = deepcopy(input_calib_params)
+    planet_params = deepcopy(input_planet_params)
     
     if bjd_limits == [] :
         calib = calib_model(len(bjd), i, calib_params, bjd[i])
@@ -304,7 +359,7 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, s
 
     titlestr = 'Radial velocities for dataset # {0}'.format(i)
     plt.title(titlestr)
-    plt.grid(True)
+    #plt.grid(True)
 
     plt.subplot(212)
     resids = rvs[i] - (calib + rvcurve)
@@ -338,7 +393,7 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output=
 
     fig1 = plt.figure()
     ax=fig1.add_axes((.1,.1,.8,.8))
-    plt.grid(color='gray', linestyle='dotted', linewidth=0.4)
+    #plt.grid(color='gray', linestyle='dotted', linewidth=0.4)
     plt.xlim([-0.030,0.030])
     binwidth = 0.003
     binBoundaries = np.arange(min(global_residuals), max(global_residuals) + binwidth, binwidth)
@@ -367,19 +422,140 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output=
 
 def plot_histogram_of_residuals(residuals, binBoundaries, datasetlabel='', color="blue", fill=False) :
     weights = np.ones_like(residuals)/float(len(residuals))
-        
+    
     mu = np.mean(residuals)
     sigma = np.std(residuals)
-        
+    
     # the histogram of the data
     n, bins, patches = plt.hist(residuals, bins=binBoundaries, weights=weights, histtype='step', align='mid', facecolor=color, alpha=0.5, fill=fill)
-        
+    
     # add a 'best fit' line
     y = stats.norm.pdf(bins, mu, sigma)
     ynorm = y / np.sum(y)
-        
+    
     normmodel = plt.plot(bins, ynorm, '--', color=color, label=datasetlabel)
 
     textstr1 = '{0}: mean = {1:.2f} m/s, sig = {2:.2f} m/s\n'.format(datasetlabel, mu*1000.,sigma*1000.)
 
     return textstr1
+
+
+def transit_duration(planet_params):
+
+    period = planet_params['per']
+    rp_over_rs = planet_params['r_R']
+    sma_over_rs = planet_params['a_R']
+    inclination = planet_params['inc']
+    eccentricity = planet_params['ecc']
+    periastron = planet_params['omega']
+
+    ww = periastron * np.pi / 180
+    ii = inclination * np.pi / 180
+    ee = eccentricity
+    aa = sma_over_rs
+    ro_pt = (1 - ee ** 2) / (1 + ee * np.sin(ww))
+    b_pt = aa * ro_pt * np.cos(ii)
+    if b_pt > 1:
+        b_pt = 0.5
+    s_ps = 1.0 + rp_over_rs
+    df = np.arcsin(np.sqrt((s_ps ** 2 - b_pt ** 2) / ((aa ** 2) * (ro_pt ** 2) - b_pt ** 2)))
+    abs_value = (period * (ro_pt ** 2)) / (np.pi * np.sqrt(1 - ee ** 2)) * df
+    
+    return abs_value
+
+
+def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params, samples, labels, dt_before=0., dt_after=0.) :
+    
+    font = {'size': 16}
+    matplotlib.rc('font', **font)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+
+    min_time = 1e60
+    max_time = -1e60
+
+    calib_params = deepcopy(input_calib_params)
+    planet_params = deepcopy(input_planet_params)
+
+    ref_tc = 0
+    
+    colors = ["tab:blue","tab:orange","tab:green","tab:red","tab:purple","tab:brown","tab:olive","darkblue","teal", "indigo", "orangered", "red", "blue", "green", "grey"]
+    
+    for i in range(len(bjd)) :
+        if i > 14 :
+            color = [i/len(bjd),1-i/len(bjd),1-i/len(bjd)]
+        else :
+            color = colors[i]
+        #calculate predicted center of transit for the first data set
+        epoch = round((bjd[i][0] - planet_params['tau']) / (planet_params['per']))
+        tc = planet_params['tau'] + epoch * planet_params['per']
+        if i == 0:
+            ref_tc = tc
+        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        modelrv = rv_model(planet_params, bjd[i])
+
+        time_from_center = bjd[i] - tc
+
+        if np.min(time_from_center) < min_time :
+            min_time = np.min(time_from_center)
+        if np.max(time_from_center) > max_time :
+            max_time = np.max(time_from_center)
+
+        #ax1.errorbar(time_from_center, rvs[i]-calib, yerr=rverrs[i], lw=0.7, fmt='o', color='k', ms=5, drawstyle='default', alpha=0.8)
+        ax1.errorbar(time_from_center, rvs[i]-calib, yerr=rverrs[i], lw=0.7, fmt='o', color=color, ms=5, drawstyle='default', alpha=0.8, label=r"T$_{0}$={1:.4f} BJD".format(i,tc))
+
+    copy_planet_params = deepcopy(planet_params)
+    
+    time_step = 1 / (60 * 60 * 24) # 1 second in unit of days
+    model_time = np.arange(min_time - dt_before, max_time+time_step + dt_after, time_step)
+    model_bjd = deepcopy(model_time) + ref_tc
+
+    for theta in samples[np.random.randint(len(samples), size=100)]:
+        copy_planet_params = updateParams(copy_planet_params, theta, labels)
+        modelrv = rv_model(copy_planet_params, model_bjd)
+        ax1.plot(model_time, modelrv, color='red', lw=0.2, alpha=0.2)
+
+    final_model = rv_model(planet_params, model_bjd)
+
+    ax1.plot(model_time, final_model, label='Fit model', color="green", lw=2)
+
+    tt = transit_duration(planet_params)
+    ti = - tt/2
+    te = tt/2
+
+    ax1.axvline(x=ti, ls="--", linewidth=0.7, color='grey', alpha=0.7)
+    ax1.axvline(x=0., ls=":", linewidth=0.7, color='grey', alpha=0.7)
+    ax1.axvline(x=te, ls="--", linewidth=0.7, color='grey', alpha=0.7)
+
+    #plt.xlabel(r"Time from center of transit [days]")
+    ax1.set_ylabel(r"Radial Velocity [km/s]")
+    ax1.legend(fontsize=12)
+
+    for i in range(len(bjd)) :
+        if i > 14 :
+            color = [i/len(bjd),1-i/len(bjd),1-i/len(bjd)]
+        else :
+            color = colors[i]
+        #calculate predicted center of transit for the first data set
+        epoch = round((bjd[i][0] - planet_params['tau']) / (planet_params['per']))
+        tc = planet_params['tau'] + epoch * planet_params['per']
+        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        modelrv = rv_model(planet_params, bjd[i])
+
+        resids = rvs[i] - (calib + modelrv)
+        #plt.errorbar(time_from_center, resids, yerr=rverrs[i], lw=0.6, fmt='o', ms=2, drawstyle='default')
+
+        time = bjd[i] - tc
+        
+        #ax2.errorbar(time, resids, yerr=rverrs[i], lw=0.7, fmt='o', color='k', ms=5, drawstyle='default', alpha=0.8)
+        ax2.errorbar(time, resids, yerr=rverrs[i], lw=0.7, fmt='o', color=color, ms=5, drawstyle='default', alpha=0.8)
+
+    ax2.axvline(x=ti, ls="--", linewidth=0.7, color='grey', alpha=0.7)
+    ax2.axvline(x=0., ls=":", linewidth=0.7, color='grey', alpha=0.7)
+    ax2.axvline(x=te, ls="--", linewidth=0.7, color='grey', alpha=0.7)
+
+    ax2.set_xlabel(r"Time from center of transit [days]")
+    matplotlib.rc('font', **font)
+    ax2.set_ylabel(r"Residuals [km/s]")
+
+    plt.show()

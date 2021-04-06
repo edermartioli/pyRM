@@ -93,12 +93,28 @@ for i in range(len(inputdata)) :
 planet_priors = priorslib.read_priors(options.exoplanet_priors)
 planet_params = priorslib.read_exoplanet_params(planet_priors)
 
+#calculate predicted center of transit for the first data set
+epoch = round((bjd[0][0] - planet_params['tau']) / (planet_params['per']))
+ref_time = planet_params['tau'] + epoch * planet_params['per']
+
 # print out planet priors
 if options.verbose:
     print("----------------")
     print("Input PLANET parameters:")
     for key in planet_params.keys() :
-        print(key, "=", planet_params[key])
+        if ("_err" not in key) and ("_pdf" not in key) :
+            pdf_key = "{0}_pdf".format(key)
+            if planet_params[pdf_key] == "FIXED" :
+                print("{0} = {1} ({2})".format(key, planet_params[key], planet_params[pdf_key]))
+            elif planet_params[pdf_key] == "Uniform" or planet_params[pdf_key] == "Jeffreys":
+                error_key = "{0}_err".format(key)
+                min = planet_params[error_key][0]
+                max = planet_params[error_key][1]
+                print("{0} <= {1} <= {2} ({3})".format(min, key, max, planet_params[pdf_key]))
+            elif planet_params[pdf_key] == "Normal" :
+                error_key = "{0}_err".format(key)
+                error = planet_params[error_key][1]
+                print("{0} = {1} +- {2} ({3})".format(key, planet_params[key], error, planet_params[pdf_key]))
     print("----------------")
 
 # if priors file is provided then load calibration parameters priors
@@ -130,21 +146,18 @@ if options.verbose:
     print("----------------")
     print("Free parameters:")
     for i in range(len(theta)) :
-        
-        
         print(labels[i], " -> initial guess:", theta[i])
-    
     print("----------------")
-
 
 """
 # Uncomment this part to plot model and data for the intial guess
 for i in range(len(bjd)) :
     calib = rm_lib.calib_model(len(bjd), i, calib_params, bjd[i])
     rvcurve = rm_lib.rv_model(planet_params, bjd[i])
-    plt.plot(bjd[i],rvcurve + calib, '-')
-    plt.errorbar(bjd[i], rvs[i], yerr=rverrs[i], fmt='o')
+    plt.plot(bjd[i]+ref_time,rvcurve + calib, '-')
+    plt.errorbar(bjd[i]+ref_time, rvs[i], yerr=rverrs[i], fmt='o')
 plt.show()
+exit()
 """
 
 #- initialize emcee sampler
@@ -179,10 +192,6 @@ if options.verbose:
     print("----------------")
     print("PLANET Fit parameters:")
     for i in range(len(planet_theta_fit)) :
-        if planet_theta_labels[i] == 'lambda' :
-            lambda_deg = planet_theta_fit[i] * 180. / np.pi
-            lambda_err_deg = np.array(planet_theta_err[i]) * 180. / np.pi
-            print("lambda (deg) =", lambda_deg, "+", lambda_err_deg[0], "-", lambda_err_deg[1])
         print(planet_theta_labels[i], "=", planet_theta_fit[i], "+", planet_theta_err[i][0], "-", planet_theta_err[i][1])
 
     print("----------------")
@@ -191,10 +200,13 @@ if options.verbose:
         print(calib_theta_labels[i], "=", calib_theta_fit[i], "+", calib_theta_err[i][0], "-", calib_theta_err[i][1])
     print("----------------")
 
-#bjd_limits=[2458651.85,2458652.20]
 bjd_limits=[]
+#bjd_limits=[ref_time-1.,ref_time+1.]
 
 if options.plot :
+    #plot all data sets
+    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels)
+
     # plot each dataset with the best model
     for i in range(len(bjd)) :
         rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels,bjd_limits=bjd_limits, detach_calib=False)
@@ -208,7 +220,7 @@ priorslib.save_posterior(calib_posterior, calib_params, calib_theta_fit, calib_t
 
 if options.plot :
     #- make a pairs plot from MCMC output:
-    rm_lib.pairs_plot(samples, labels)
+    rm_lib.pairs_plot(samples, labels, calib_params, planet_params)
     #--------
 
 if options.plot :

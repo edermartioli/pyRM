@@ -22,8 +22,8 @@ def get_quantiles(dist, alpha = 0.68, method = 'median'):
     """
     get_quantiles function
     DESCRIPTION
-        This function returns, in the default case, the parameter median and the error% 
-        credibility around it. This assumes you give a non-ordered 
+        This function returns, in the default case, the parameter median and the error%
+        credibility around it. This assumes you give a non-ordered
         distribution of parameters.
     OUTPUTS
         Median of the parameter,upper credibility bound, lower credibility bound
@@ -51,16 +51,17 @@ class normal_parameter:
       """
       Description
       -----------
-      This class defines a parameter object which has a normal prior. It serves 
+      This class defines a parameter object which has a normal prior. It serves
       to save both the prior and the posterior chains for an easier check of the parameter.
       """
       
-      def __init__(self,prior_hypp):
+      def __init__(self,prior_hypp, pos = False):
           self.value = prior_hypp[0]
           self.value_u = 0.0
           self.value_l = 0.0
           self.prior_hypp = prior_hypp
           self.posterior = []
+          self.is_positive = pos
 
       def get_ln_prior(self):
           return np.log(1./np.sqrt(2.*np.pi*(self.prior_hypp[1]**2)))-\
@@ -75,12 +76,15 @@ class normal_parameter:
           self.value = param
           self.value_u = param_u
           self.value_l = param_l
-          
+      
+      def check_value(self, x):
+          return ((self.is_positive and x < 0) == False)
+
 class uniform_parameter:
       """
       Description
       -----------
-      This class defines a parameter object which has a uniform prior. It serves 
+      This class defines a parameter object which has a uniform prior. It serves
       to save both the prior and the posterior chains for an easier check of the parameter.
       """
       def __init__(self,prior_hypp):
@@ -97,7 +101,7 @@ class uniform_parameter:
           if x > self.prior_hypp[0] and  x < self.prior_hypp[1]:
               return True
           else:
-              return False  
+              return False
  
       def set_value(self,new_val):
           self.value = new_val
@@ -113,7 +117,7 @@ class jeffreys_parameter:
       """
       Description
       -----------
-      This class defines a parameter object which has a Jeffreys prior. It serves 
+      This class defines a parameter object which has a Jeffreys prior. It serves
       to save both the prior and the posterior chains for an easier check of the parameter.
       """
       def __init__(self,prior_hypp):
@@ -146,18 +150,20 @@ class constant_parameter:
       """
       Description
       -----------
-      This class defines a parameter object which has a constant value. It serves 
+      This class defines a parameter object which has a constant value. It serves
       to save both the prior and the posterior chains for an easier check of the parameter.
       """
       def __init__(self,val):
           self.value = val
-          
+
 def read_priors(filename, calibration = False):
     def generate_parameter(values):
         out_dict = {}
         out_dict['type'] = values[1]
         if values[1] == 'Normal':
             out_dict['object'] = normal_parameter(np.array(values[2].split(',')).astype('float64'))
+        elif values[1] == 'Normal_positive':
+            out_dict['object'] = normal_parameter(np.array(values[2].split(',')).astype('float64'), True)
         elif values[1] == 'Uniform':
             out_dict['object'] = uniform_parameter(np.array(values[2].split(',')).astype('float64'))
         elif values[1] == 'Jeffreys':
@@ -182,6 +188,12 @@ def read_priors(filename, calibration = False):
             #                                [3]: starting value (optional)
             values = line.split()
             priors[values[0]] = generate_parameter(values)
+            errors = np.array(values[2].split(',')).astype('float64')
+            error_key = "{0}_err".format(values[0])
+            pdf_key = "{0}_pdf".format(values[0])
+            priors[pdf_key] = values[1]
+            priors[error_key] = errors
+
     f.close()
 
     if calibration :
@@ -211,6 +223,11 @@ def read_exoplanet_params(prior_dict, output_theta_params = False):
                 labels.append(key)
         return theta, labels
     else :
+        for i in range(len(param_ids)):
+            error_key = "{0}_err".format(param_ids[i])
+            planet_params[error_key] = prior_dict[error_key]
+            pdf_key = "{0}_pdf".format(param_ids[i])
+            planet_params[pdf_key] = prior_dict[pdf_key]
         return planet_params
 
 def read_calib_params(calib_priors_dict, output_theta_params = False):
@@ -297,19 +314,25 @@ def get_theta_from_priors(planet_priors, calib_priors) :
     return theta, labels, theta_priors
 
 
-def save_posterior(output, params, theta_fit, theta_labels, theta_err, calib=False, ncoeff=1) :
+def save_posterior(output, params, theta_fit, theta_labels, theta_err, calib=False, ncoeff=1, ref_time=0.) :
 
     outfile = open(output,"w")
     outfile.write("# Parameter_ID\tPrior_Type\tValues\n")
     if calib :
         outfile.write("orderOfPolynomial\tFIXED\t{0}\n".format(ncoeff))
-        
+    
     for key in params.keys() :
         if key in theta_labels :
             idx = theta_labels.index(key)
             error = (theta_err[idx][0] + theta_err[idx][1]) / 2.
-            outfile.write("{0}\tNormal\t{1:.4f},{2:.4f}\n".format(key, theta_fit[idx], error))
+            if key == 'tau' :
+                outfile.write("{0}\tNormal\t{1:.4f},{2:.4f}\n".format(key, theta_fit[idx]+ref_time, error))
+            else :
+                outfile.write("{0}\tNormal\t{1:.4f},{2:.4f}\n".format(key, theta_fit[idx], error))
         else :
-            outfile.write("{0}\tFIXED\t{1}\n".format(key,params[key]))
+            if key == 'tau' :
+                outfile.write("{0}\tFIXED\t{1}\n".format(key,params[key]+ref_time))
+            else :
+                outfile.write("{0}\tFIXED\t{1}\n".format(key,params[key]))
 
     outfile.close()
