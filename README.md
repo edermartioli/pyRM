@@ -22,4 +22,6 @@ The following input options are available:
 --samples_filename for the file name to save the MCMC samples
 -v for verbose
 -p for plotting
+-k for saving the plots
+-r for saving the residuals
 ```
