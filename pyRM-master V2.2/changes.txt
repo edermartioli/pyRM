@@ -1,7 +1,0 @@
-Changes in this version :
-
-- added two options :
-	"-r" : saves the residuals for the datasets in a text file
-	"-k" : keep the plots in the folder as png files. One can now choose if 	he wants to display the plots (using "-p"), save them, or both.
-- Outputs the mean and standard deviation parameters for all the residuals. Useful when working with multiple datasets.
-- Outputs the standard deviation of the residuals during, and outside of the transit, for each dataset.
