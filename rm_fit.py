@@ -44,6 +44,8 @@ parser.add_option("-b", "--burnin", dest="burnin", help="Number of MCMC burn-in 
 parser.add_option("-s", "--samples_filename", dest="samples_filename", help="MCMC samples file name",type='string',default="")
 parser.add_option("-p", action="store_true", dest="plot", help="plot", default=False)
 parser.add_option("-v", action="store_true", dest="verbose", help="verbose", default=False)
+parser.add_option("-k", action="store_true", dest="save_plots", help="save_plots", default=False)
+parser.add_option("-r", action="store_true", dest="save_residuals", help="save_residuals", default=False)
 
 try:
     options,args = parser.parse_args(sys.argv[1:])
@@ -198,13 +200,18 @@ if options.verbose:
 
 bjd_limits=[]
 
-if options.plot :
+p = options.plot
+k = options.save_plots
+r = options.save_residuals
+
+if p or k :
+    print("Plotting :")
     #plot all data sets
-    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels)
+    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels, p, k)
 
     # plot each dataset with the best model
     for i in range(len(bjd)) :
-        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels,bjd_limits=bjd_limits, detach_calib=False)
+        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels, p, k,bjd_limits=bjd_limits, detach_calib=False)
 
 # save posterior of planet parameters into file:
 priorslib.save_posterior(planet_posterior, planet_params, planet_theta_fit, planet_theta_labels, planet_theta_err)
@@ -213,12 +220,14 @@ priorslib.save_posterior(planet_posterior, planet_params, planet_theta_fit, plan
 ncoeff=calib_priors['orderOfPolynomial']['object'].value
 priorslib.save_posterior(calib_posterior, calib_params, calib_theta_fit, calib_theta_labels, calib_theta_err, calib=True, ncoeff=ncoeff)
 
-if options.plot :
+if p or k :
     #- make a pairs plot from MCMC output:
-    rm_lib.pairs_plot(samples, labels, calib_params, planet_params)
+    rm_lib.pairs_plot(samples, labels, calib_params, planet_params, p, k)
     #--------
 
-if options.plot :
+if p or k or r:
     #- perform analysis of residuals:
-    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output="")
+    print("----------------")
+    print("Running Analysis of residuals:")
+    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, p, k, r, output="")
     #--------
