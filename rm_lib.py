@@ -226,7 +226,7 @@ def lnprior(theta_priors, theta, labels):
 
 
 #make a pairs plot from MCMC output
-def pairs_plot(samples, labels, calib_params, planet_params, output='', addlabels=True) :
+def pairs_plot(samples, labels, calib_params, planet_params, p = False, k = False, output='', addlabels=True) :
     truths=[]
     font = {'size': 15}
     matplotlib.rc('font', **font)
@@ -257,10 +257,13 @@ def pairs_plot(samples, labels, calib_params, planet_params, output='', addlabel
         fig = corner.corner(samples, labels=newlabels, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84], truths=truths)
     else :
         fig = corner.corner(samples, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84],truths=truths)
-    plt.show()
+    if p :
+        plt.show()
+    if k :
+        plt.savefig("pairsplot.png", format = 'png')
     if output != '' :
         fig.savefig(output)
-        plt.close(fig)
+    plt.close(fig)
 
 
 
@@ -297,7 +300,7 @@ def best_fit_params(params, free_param_labels, samples, use_mean=False, verbose 
 
 
 #plot model and data
-def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_calib_params, samples, labels, bjd_limits=[], detach_calib=False) :
+def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_calib_params, samples, labels, p = False, k = False, bjd_limits=[], detach_calib=False) :
 
     plt.subplot(211)
     
@@ -368,25 +371,50 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
     else :
         plt.xlim((bjd_limits[0],bjd_limits[1]))
     plt.legend()
+    if p:
+        plt.show()
+    if k :
+        plt.savefig("plot_RV_"+str(i)+".png", format = 'png')
 
-    plt.show()
 
-
-def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output="") :
+def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, p = False, k = False, r = False, output="") :
     
     plt_colors = ['orange','olive', 'brown', 'red', 'purple', 'cyan', 'pink', 'gray', 'blue', 'green']
     
     residuals = []
+    res_in_transit = []
+    res_off_transit = []
+    
+    tt = transit_duration(planet_params)
+    ti = - tt/2
+    te = tt/2
     
     for i in range(len(bjd)) :
         calib = calib_model(len(bjd), i, calib_params, bjd[i])
         rvcurve = rv_model(planet_params, bjd[i])
         modelrv = calib + rvcurve
         residuals.append(rvs[i] - modelrv)
+        res_in_transit_i = []
+        res_off_transit_i = []
+        for j in range(len(bjd[i])):
+            #calculate predicted center of transit for the data set j
+            epoch = round((bjd[i][j] - planet_params['tau']) / (planet_params['per']))
+            tc = planet_params['tau'] + epoch * planet_params['per']
+            if ((bjd[i][j]-tc < ti) or (bjd[i][j]-tc > te)) :
+                res_off_transit_i.append(rvs[i][j] - modelrv[j])
+            else :
+                res_in_transit_i.append(rvs[i][j] - modelrv[j])
+        res_in_transit.append(res_in_transit_i)
+        res_off_transit.append(res_off_transit_i)
 
     global_residuals = []
-    for i in range(len(residuals)) :
-        global_residuals = np.append(global_residuals,residuals[i])
+    if r :
+        f = open("residuals_values.txt", "w")
+        f.truncate(0)
+        for i in range(len(residuals)) :
+            global_residuals = np.append(global_residuals,residuals[i])
+        f.write("\n"+str(residuals))
+        f.close()
 
     fig1 = plt.figure()
     ax=fig1.add_axes((.1,.1,.8,.8))
@@ -400,7 +428,9 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output=
         textstr1 += plot_histogram_of_residuals(residuals[i], binBoundaries, datasetlabel="Dataset {0}".format(i), color=plt_colors[i])
 
     textstr = plot_histogram_of_residuals(global_residuals, binBoundaries, datasetlabel="ALL datasets", fill=True) + textstr1
-
+    
+    print("normal_calibrated models :")
+    
     print(textstr1)
 
     plt.text(-0.03, 0.20, textstr, fontsize=10, bbox=dict(facecolor='none', edgecolor='gray'))
@@ -413,9 +443,26 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, output=
     if output != "":
         fig1.savefig(output, facecolor='white')   # save the figure to file
     else :
-        plt.show()
+        if p:
+            plt.show()
+        if k:
+            plt.savefig("plot_residuals.png", format = 'png')
     plt.close(fig1)
-
+    
+    def avg(L):
+        return (sum(L) / len(L))
+    
+    def std(L):
+        L_V = sum([((x - avg(L)) ** 2) for x in L]) / len(L)
+        return (L_V ** 0.5)
+    
+    
+    print("Parameters mean :")
+    print("mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s")
+    for i in range(len(residuals)):
+        print("std of dataset "+str(i)+" during transit : "+str(round(std(res_in_transit[i])*1e3,2))+" m/s")
+        print("std of dataset "+str(i)+" out of transit : "+str(round(std(res_off_transit[i])*1e3,2))+" m/s")
+    
 
 def plot_histogram_of_residuals(residuals, binBoundaries, datasetlabel='', color="blue", fill=False) :
     weights = np.ones_like(residuals)/float(len(residuals))
@@ -425,7 +472,7 @@ def plot_histogram_of_residuals(residuals, binBoundaries, datasetlabel='', color
     
     # the histogram of the data
     n, bins, patches = plt.hist(residuals, bins=binBoundaries, weights=weights, histtype='step', align='mid', facecolor=color, alpha=0.5, fill=fill)
-    
+
     # add a 'best fit' line
     y = stats.norm.pdf(bins, mu, sigma)
     ynorm = y / np.sum(y)
@@ -461,7 +508,7 @@ def transit_duration(planet_params):
     return abs_value
 
 
-def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params, samples, labels, dt_before=0., dt_after=0.) :
+def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params, samples, labels, p = False, k = False, dt_before=0., dt_after=0.) :
     
     font = {'size': 16}
     matplotlib.rc('font', **font)
@@ -554,5 +601,8 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
     ax2.set_xlabel(r"Time from center of transit [days]")
     matplotlib.rc('font', **font)
     ax2.set_ylabel(r"Residuals [km/s]")
-
-    plt.show()
+    
+    if p :
+        plt.show()
+    if k :
+        plt.savefig("alldatasets.png", format='png')
