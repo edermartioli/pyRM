@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from copy import deepcopy
 import matplotlib
+import csv
 
 def vradfction(t,k,tp,omega,T0,V0,e):
 
@@ -257,10 +258,10 @@ def pairs_plot(samples, labels, calib_params, planet_params, p = False, k = Fals
         fig = corner.corner(samples, labels=newlabels, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84], truths=truths)
     else :
         fig = corner.corner(samples, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84],truths=truths)
-    if p :
-        plt.show()
     if k :
         plt.savefig("pairsplot.png", format = 'png')
+    if p :
+        plt.show()
     if output != '' :
         fig.savefig(output)
     plt.close(fig)
@@ -371,10 +372,10 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
     else :
         plt.xlim((bjd_limits[0],bjd_limits[1]))
     plt.legend()
-    if p:
-        plt.show()
     if k :
         plt.savefig("plot_RV_"+str(i)+".png", format = 'png')
+    if p:
+        plt.show()
 
 
 def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, p = False, k = False, r = False, output="") :
@@ -408,13 +409,28 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, p = Fal
         res_off_transit.append(res_off_transit_i)
 
     global_residuals = []
+    
     if r :
         f = open("residuals_values.txt", "w")
         f.truncate(0)
-        for i in range(len(residuals)) :
-            global_residuals = np.append(global_residuals,residuals[i])
-        f.write("\n"+str(residuals))
-        f.close()
+        writer = csv.writer(f, delimiter = "\t")
+    for i in range(len(residuals)) :
+        global_residuals = np.append(global_residuals,residuals[i])
+    if r :
+        h = max(len(residuals[i]) for i in range(len(residuals)))
+        T = []
+        for m in range(len(residuals)):
+            T.append("#"+"dataset_"+str(m)+"         ")
+        writer.writerow(T)
+        for i in range(h):
+            L = []
+            for j in range(len(residuals)):
+                if i < len(residuals[j]):
+                    L.append(residuals[j][i])
+                else :
+                    L.append("-------------------")
+            writer.writerow(L)
+    if r : f.close()
 
     fig1 = plt.figure()
     ax=fig1.add_axes((.1,.1,.8,.8))
@@ -443,10 +459,10 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, p = Fal
     if output != "":
         fig1.savefig(output, facecolor='white')   # save the figure to file
     else :
-        if p:
-            plt.show()
         if k:
             plt.savefig("plot_residuals.png", format = 'png')
+        if p:
+            plt.show()
     plt.close(fig1)
     
     def avg(L):
@@ -601,8 +617,9 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
     ax2.set_xlabel(r"Time from center of transit [days]")
     matplotlib.rc('font', **font)
     ax2.set_ylabel(r"Residuals [km/s]")
-    
-    if p :
-        plt.show()
+
     if k :
         plt.savefig("alldatasets.png", format='png')
+       
+    if p :
+        plt.show()
