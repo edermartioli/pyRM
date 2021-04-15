@@ -24,4 +24,5 @@ The following input options are available:
 -p for plotting
 -k for saving the plots
 -r for saving the residuals
+--output for choosing the save directory of the plots and residuals
 ```
