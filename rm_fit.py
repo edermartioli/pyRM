@@ -35,6 +35,7 @@ import emcee
 
 parser = OptionParser()
 parser.add_option("-i", "--input", dest="input", help="Input RV data files",type='string',default="*.rdb")
+parser.add_option("-t", "--output", dest="output", help="output files",type='string',default="")
 parser.add_option("-e", "--exoplanet_priors", dest="exoplanet_priors", help="File containing exoplanet priors",type='string',default="")
 parser.add_option("-c", "--calib_priors", dest="calib_priors", help="File containing calibration priors",type='string',default="")
 parser.add_option("-o", "--calib_order", dest="calib_order", help="Order of calibration polynomial",type='string',default="1")
@@ -62,8 +63,11 @@ if options.verbose:
     print('Number of MCMC walkers: ', options.walkers)
     print('Number of MCMC burn-in samples: ', options.burnin)
     print('MCMC samples file name: ', options.samples_filename)
+    print('output directory : ', options.output)
 
 calib_order = int(options.calib_order)
+od = options.output
+inf = options.input
 
 planet_posterior = (options.exoplanet_priors).replace(".pars", "_posterior.pars")
 if options.verbose:
@@ -94,6 +98,7 @@ for i in range(len(inputdata)) :
 # Load exoplanet parameters priors
 planet_priors = priorslib.read_priors(options.exoplanet_priors)
 planet_params = priorslib.read_exoplanet_params(planet_priors)
+
 
 # print out planet priors
 if options.verbose:
@@ -163,7 +168,7 @@ amp, ndim, nwalkers, niter, burnin = 5e-4, len(theta), int(options.walkers), int
 
 # Set up the backend
 if options.samples_filename != "":
-    backend = emcee.backends.HDFBackend(options.samples_filename)
+    backend = emcee.backends.HDFBackend(od+options.samples_filename)
     backend.reset(nwalkers, ndim)
 else :
     backend = None
@@ -207,11 +212,11 @@ r = options.save_residuals
 if p or k :
     print("Plotting :")
     #plot all data sets
-    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels, p, k)
+    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels,inf, p, k, od)
 
     # plot each dataset with the best model
     for i in range(len(bjd)) :
-        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels, p, k,bjd_limits=bjd_limits, detach_calib=False)
+        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels,inf, p, k, od, bjd_limits=bjd_limits, detach_calib=False)
 
 # save posterior of planet parameters into file:
 priorslib.save_posterior(planet_posterior, planet_params, planet_theta_fit, planet_theta_labels, planet_theta_err)
@@ -222,12 +227,12 @@ priorslib.save_posterior(calib_posterior, calib_params, calib_theta_fit, calib_t
 
 if p or k :
     #- make a pairs plot from MCMC output:
-    rm_lib.pairs_plot(samples, labels, calib_params, planet_params, p, k)
+    rm_lib.pairs_plot(samples, labels, calib_params, planet_params,inf, p, k, od)
     #--------
 
 if p or k or r:
     #- perform analysis of residuals:
     print("----------------")
     print("Running Analysis of residuals:")
-    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, p, k, r, output="")
+    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params,inf, p, k, r, od, output="")
     #--------
