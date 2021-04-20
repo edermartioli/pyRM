@@ -161,7 +161,6 @@ def lnprob(theta, theta_priors, labels, calib_params, planet_params, bjd, rvs, r
         return -np.inf
     
     prob = lp + lnlike(theta, labels, calib_params, planet_params, bjd, rvs, rverrs)
-
     if np.isnan(prob) :
         return -np.inf
     else :
@@ -215,14 +214,12 @@ def lnprior(theta):
 def lnprior(theta_priors, theta, labels):
 
     total_prior = 0.0
-
     for i in range(len(theta)) :
         #theta_priors[labels[i]]['object'].set_value(theta[i])
         if theta_priors[labels[i]]['type'] == "Uniform" or theta_priors[labels[i]]['type'] == "Jeffreys" or theta_priors[labels[i]]['type'] == "Normal_positive" :
             if not theta_priors[labels[i]]['object'].check_value(theta[i]):
                 return -np.inf
         total_prior += theta_priors[labels[i]]['object'].get_ln_prior()
-        
     return total_prior
 
 
