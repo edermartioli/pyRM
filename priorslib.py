@@ -177,6 +177,7 @@ def read_priors(filename, calibration = False):
     f = open(filename)
     # Generate dictionary that will save the data on the priors:
     priors = {}
+    n_coefs = 0
     while True:
         line = f.readline()
         if line == '':
@@ -193,15 +194,16 @@ def read_priors(filename, calibration = False):
             pdf_key = "{0}_pdf".format(values[0])
             priors[pdf_key] = values[1]
             priors[error_key] = errors
+            n_coefs += 1
 
     f.close()
 
     if calibration :
-        n_coefs =  (len(priors) - 1.0)
+        n_coefs -= 1
         ndatasets = n_coefs / float(priors['orderOfPolynomial']['object'].value)
         priors["ndatasets"] = generate_parameter(['ndatasets','FIXED',str(ndatasets)])
         baseorder = priors['orderOfPolynomial']['object'].value
-
+    
     return priors
 
 def read_exoplanet_params(prior_dict, output_theta_params = False):
