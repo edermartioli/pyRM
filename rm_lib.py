@@ -195,7 +195,7 @@ def lnlike(theta, labels, calib_params, planet_params, bjd, rvs, rverrs):
     sum_of_residuals = 0
     
     for i in range(len(bjd)) :
-        calib = calib_model(len(bjd), i, calib_params, bjd[i],prior_planet_params)
+        calib = calib_model(len(bjd), i, calib_params, bjd[i],planet_params)
         rvcurve = calib + rv_model(planet_params, bjd[i])
         residuals = rvs[i] - rvcurve
         
