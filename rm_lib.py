@@ -107,7 +107,7 @@ def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps,e,anovraie):
     return v
 
 
-def calib_model(n, i, params, bjd) :
+def calib_model(n, i, params, bjd,planet_params) :
 
     ncoefs = int(len(params) / n)
     
@@ -116,9 +116,17 @@ def calib_model(n, i, params, bjd) :
     for c in range(int(ncoefs)):
         coeff_id = 'd{0:02d}c{1:1d}'.format(i,c)
         coefs.append(params[coeff_id])
-
+    
+    relative_bjd = []
+    
+    for j in range(len(bjd)):
+            #calculate predicted center of transit for the data set j
+            epoch = round((bjd[j] - planet_params['tau']) / (planet_params['per']))
+            tc = planet_params['tau'] + epoch * planet_params['per']
+            relative_bjd.append(bjd[j]-tc)
+    
     p = np.poly1d(np.flip(coefs))
-    out_model = p(bjd)
+    out_model = p(relative_bjd)
     return out_model
 
 def rv_model(planet_params, bjd) :
@@ -179,6 +187,7 @@ def updateParams(params, theta, labels) :
 def lnlike(theta, labels, calib_params, planet_params, bjd, rvs, rverrs):
     
     prior_planet_params = deepcopy(planet_params)
+    prior_calib_params = deepcopy(calib_params)
     
     planet_params = updateParams(planet_params, theta, labels)
     calib_params = updateParams(calib_params, theta, labels)
@@ -186,7 +195,7 @@ def lnlike(theta, labels, calib_params, planet_params, bjd, rvs, rverrs):
     sum_of_residuals = 0
     
     for i in range(len(bjd)) :
-        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        calib = calib_model(len(bjd), i, calib_params, bjd[i],prior_planet_params)
         rvcurve = calib + rv_model(planet_params, bjd[i])
         residuals = rvs[i] - rvcurve
         
@@ -308,7 +317,7 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
     planet_params = deepcopy(input_planet_params)
     
     if bjd_limits == [] :
-        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        calib = calib_model(len(bjd), i, calib_params, bjd[i], planet_params)
         rvcurve = rv_model(planet_params, bjd[i])
         if detach_calib :
             modelrv = rvcurve
@@ -319,7 +328,7 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
     else :
         tstep = (bjd[i][-1] - bjd[i][0]) / len(bjd[i])
         bjd_new = np.arange(bjd_limits[0], bjd_limits[1], tstep)
-        calib = calib_model(len(bjd), i, calib_params, bjd_new)
+        calib = calib_model(len(bjd), i, calib_params, bjd_new, planet_params)
         rvcurve = rv_model(planet_params, bjd_new)
         if detach_calib :
             modelrv = rvcurve
@@ -329,7 +338,7 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
         plt.plot(bjd_new, modelrv, label='Model', lw=2)
 
     if detach_calib :
-        calib_loc = calib_model(len(bjd), i, calib_params, bjd[i])
+        calib_loc = calib_model(len(bjd), i, calib_params, bjd[i], planet_params)
         plt.errorbar(bjd[i], rvs[i]-calib_loc, yerr=rverrs[i], label='Observations', lw=0.6, fmt='o', ms=2, drawstyle='default')
     else :
         plt.errorbar(bjd[i], rvs[i], yerr=rverrs[i], label='Observations', lw=0.6, fmt='o', ms=2, drawstyle='default')
@@ -337,7 +346,7 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
     for theta in samples[np.random.randint(len(samples), size=100)]:
         calib_params = updateParams(calib_params, theta, labels)
         planet_params = updateParams(planet_params, theta, labels)
-        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        calib = calib_model(len(bjd), i, calib_params, bjd[i], planet_params)
         rvcurve = rv_model(planet_params, bjd[i])
         if detach_calib :
             modelrv = rvcurve
@@ -388,7 +397,7 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, inf='',
     te = tt/2
     
     for i in range(len(bjd)) :
-        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        calib = calib_model(len(bjd), i, calib_params, bjd[i], planet_params)
         rvcurve = rv_model(planet_params, bjd[i])
         modelrv = calib + rvcurve
         residuals.append(rvs[i] - modelrv)
@@ -551,7 +560,7 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
         tc = planet_params['tau'] + epoch * planet_params['per']
         if i == 0:
             ref_tc = tc
-        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        calib = calib_model(len(bjd), i, calib_params, bjd[i], planet_params)
         modelrv = rv_model(planet_params, bjd[i])
 
         time_from_center = bjd[i] - tc
@@ -599,7 +608,7 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
         #calculate predicted center of transit for the first data set
         epoch = round((bjd[i][0] - planet_params['tau']) / (planet_params['per']))
         tc = planet_params['tau'] + epoch * planet_params['per']
-        calib = calib_model(len(bjd), i, calib_params, bjd[i])
+        calib = calib_model(len(bjd), i, calib_params, bjd[i], planet_params)
         modelrv = rv_model(planet_params, bjd[i])
 
         resids = rvs[i] - (calib + modelrv)
