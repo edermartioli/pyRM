@@ -212,11 +212,11 @@ r = options.save_residuals
 if p or k :
     print("Plotting :")
     #plot all data sets
-    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels,inf, p, k, od)
+    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels, theta_priors,inf, p, k, od)
 
     # plot each dataset with the best model
     for i in range(len(bjd)) :
-        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels,inf, p, k, od, bjd_limits=bjd_limits, detach_calib=False)
+        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels, theta_priors,inf, p, k, od, bjd_limits=bjd_limits, detach_calib=False)
 
 # save posterior of planet parameters into file:
 priorslib.save_posterior(planet_posterior, planet_params, planet_theta_fit, planet_theta_labels, planet_theta_err)
@@ -234,5 +234,5 @@ if p or k or r:
     #- perform analysis of residuals:
     print("----------------")
     print("Running Analysis of residuals:")
-    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params,inf, p, k, r, od, output="")
+    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_priors,inf, p, k, r, od, output="")
     #--------
