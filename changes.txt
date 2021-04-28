@@ -1,6 +1,6 @@
 Changes in this version :
 
-The calibration priors now include a center time. the associated prior in the priors file is "dnntc". This time has to be fixed to a constant. If no calibration prior is given, the center time is computed from the planet priors.
+The calibration priors now include a center time. the associated prior in the priors file is "dnntc", where "nn" is the number of the dataset. This time has to be fixed to a constant. If no calibration prior is given, the center time is computed from the planet priors.
 
 Output files have changed. Now we have one csv file for each dadaset with (for each point) the input data, the model, the keplerian, RM and Calibration parts, and the resiual. The option to get this output file is still "-r".
 
