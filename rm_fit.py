@@ -36,6 +36,7 @@ import emcee
 parser = OptionParser()
 parser.add_option("-i", "--input", dest="input", help="Input RV data files",type='string',default="*.rdb")
 parser.add_option("-t", "--output", dest="output", help="output files",type='string',default="")
+parser.add_option("-m", "--basename", dest="basename", help="basename for output files",type='string',default="")
 parser.add_option("-e", "--exoplanet_priors", dest="exoplanet_priors", help="File containing exoplanet priors",type='string',default="")
 parser.add_option("-c", "--calib_priors", dest="calib_priors", help="File containing calibration priors",type='string',default="")
 parser.add_option("-o", "--calib_order", dest="calib_order", help="Order of calibration polynomial",type='string',default="1")
@@ -85,7 +86,15 @@ if options.verbose:
 if options.verbose:
     print("Creating list of RV time series files...")
 inputdata = sorted(glob.glob(options.input))
-
+if options.basename != "":
+    bn = options.basename
+else:
+    bn = ""
+    for char in inputdata[0].rsplit('/')[-1]:
+        if char.isalnum():
+            bn += char
+        if char in ["_","-"]:
+            bn += char
 # Load data
 bjd, rvs, rverrs  = [], [], []
 for i in range(len(inputdata)) :
@@ -126,7 +135,8 @@ if options.calib_priors != "" :
     calib_params = priorslib.read_calib_params(calib_priors)
 else :
 #if no priors file is provided then make a guess
-    calib_priors = priorslib.init_calib_priors(ndim=len(inputdata), order=calib_order)
+    tc = planet_priors['tau']['object'].value
+    calib_priors = priorslib.init_calib_priors(tc, ndim=len(inputdata), order=calib_order)
     calib_params = priorslib.read_calib_params(calib_priors)
     for i in range(len(rvs)) :
         coeff_name = 'd{0:02d}c0'.format(i)
@@ -212,7 +222,7 @@ r = options.save_residuals
 if p or k :
     print("Plotting :")
     #plot all data sets
-    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels, theta_priors,inf, p, k, od)
+    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels, theta_priors,bn, p, k, od)
 
     # plot each dataset with the best model
     for i in range(len(bjd)) :
@@ -227,12 +237,12 @@ priorslib.save_posterior(calib_posterior, calib_params, calib_theta_fit, calib_t
 
 if p or k :
     #- make a pairs plot from MCMC output:
-    rm_lib.pairs_plot(samples, labels, calib_params, planet_params,inf, p, k, od)
+    rm_lib.pairs_plot(samples, labels, calib_params, planet_params,bn, p, k, od)
     #--------
 
 if p or k or r:
     #- perform analysis of residuals:
     print("----------------")
     print("Running Analysis of residuals:")
-    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_priors,inf, p, k, r, od, output="")
+    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_priors, bn, inf, p, k, r, od, output="")
     #--------
