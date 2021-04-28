@@ -7,7 +7,7 @@ Simple usage example:
 ```
 python ./rm_fit.py --input=data/HD189733_t2-K2mask-filtered_ccf.rdb 
 --exoplanet_priors=priors/HD189733.pars --calib_order=1 --nsteps=400 
---walkers=30 --burnin=150 --samples_filename=hd189733_mcmc_samples.h5 -vp
+--walkers=30 --burnin=150 --samples_filename=hd189733_mcmc_samples.h5 -v -k -r --output=HD_189733/ --basename= HD189733
 ```
 
 The following input options are available:
@@ -23,6 +23,7 @@ The following input options are available:
 -v for verbose
 -p for plotting
 -k for saving the plots
--r for saving the residuals
+-r for saving the detailed output in a csv file
 --output for choosing the save directory of the plots and residuals
+--basename for giving a stem to the output files common to all the datasets
 ```
