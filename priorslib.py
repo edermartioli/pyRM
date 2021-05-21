@@ -206,7 +206,7 @@ def read_priors(filename, calibration = False):
 
 def read_exoplanet_params(prior_dict, output_theta_params = False):
 
-    param_ids = ['per','tau','k','omega','ecc','rv0','lambda', 'vsini','a_R','inc','r_R','omega_rm','ldc']
+    param_ids = ['per','tau','phi0','k','omega','ecc','rv0','lambda', 'vsini','a_R','inc','r_R','omega_rm','ldc']
 
     planet_params = {}
     

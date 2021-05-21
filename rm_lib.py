@@ -131,6 +131,7 @@ def rv_model(planet_params, bjd) :
     
     per = planet_params['per']
     tau = planet_params['tau']
+    phi0 = planet_params['phi0']
     k = planet_params['k']
     omega = planet_params['omega'] * np.pi / 180.
     ecc = planet_params['ecc']
@@ -145,13 +146,13 @@ def rv_model(planet_params, bjd) :
     
     model = []
 
-    keplerian = vradfction(bjd, k, per, omega, tau, rv0, ecc)
+    keplerian = vradfction(bjd, k, per, omega, phi0, rv0, ecc)
     vrad = keplerian[0]
 
     anovraie = keplerian[2]
 
     dvrad = np.concatenate((np.array([vrad[1]-vrad[0]]),vrad[1:]-vrad[:-1]))
-
+    
     rm_effect = RManomaly(dvrad, lambdap, vsini, a_R, inc, r_R, omega_rm, ldc, ecc, anovraie)
 
     return (vrad + rm_effect)
@@ -327,7 +328,6 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
         else :
             modelrv = calib + rvcurve
         plt.plot(bjd_new, modelrv, label='Model', lw=2)
-
     if detach_calib :
         calib_loc = calib_model(len(bjd), i, calib_params, bjd[i])
         plt.errorbar(bjd[i], rvs[i]-calib_loc, yerr=rverrs[i], label='Observations', lw=0.6, fmt='o', ms=2, drawstyle='default')
@@ -405,7 +405,7 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
         for j in range(len(bjd[i])):
             #calculate predicted center of transit for the data set j
             epoch = round((bjd[i][j] - planet_params['tau']) / (planet_params['per']))
-            tc = planet_params['tau'] + epoch * planet_params['per']
+            tc = + planet_params['tau'] + epoch * planet_params['per']
             if ((bjd[i][j]-tc < ti) or (bjd[i][j]-tc > te)) :
                 res_off_transit_i.append(rvs[i][j] - modelrv[j])
             else :
@@ -433,11 +433,12 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
             
             per = planet_params['per']
             tau = planet_params['tau']
+            phi0 = planet_params['phi0']
             k = planet_params['k']
             omega = planet_params['omega'] * np.pi / 180.
             ecc = planet_params['ecc']
             rv0 = planet_params['rv0']
-            keplerian = vradfction(bjd[i], k, per, omega, tau, rv0, ecc)
+            keplerian = vradfction(bjd[i], k, per, omega, phi0, rv0, ecc)
             l = f.readline().split()
             l += ['model','kepler','RM','calib','residual']
             writer.writerow(l)
@@ -575,14 +576,13 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
             color = colors[i]
         #calculate predicted center of transit for the first data set
         epoch = round((bjd[i][0] - planet_params['tau']) / (planet_params['per']))
-        tc = planet_params['tau'] + epoch * planet_params['per']
+        tc = + planet_params['tau'] + epoch * planet_params['per']
         if i == 0:
             ref_tc = tc
         calib = calib_model(len(bjd), i, calib_params, bjd[i])
         modelrv = rv_model(planet_params, bjd[i])
 
         time_from_center = bjd[i] - tc
-
         if np.min(time_from_center) < min_time :
             min_time = np.min(time_from_center)
         if np.max(time_from_center) > max_time :
@@ -590,7 +590,6 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
 
         #ax1.errorbar(time_from_center, rvs[i]-calib, yerr=rverrs[i], lw=0.7, fmt='o', color='k', ms=5, drawstyle='default', alpha=0.8)
         ax1.errorbar(time_from_center, rvs[i]-calib, yerr=rverrs[i], lw=0.7, fmt='o', color=color, ms=5, drawstyle='default', alpha=0.8, label=r"T$_{0}$={1:.4f} BJD".format(i,tc))
-
     copy_planet_params = deepcopy(planet_params)
     
     time_step = 1 / (60 * 60 * 24) # 1 second in unit of days

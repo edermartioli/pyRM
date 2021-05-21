@@ -1,4 +1,22 @@
-Changes in this version :
+Major additions before 28/04/2021 :
+
+- added the "Normal_positive" prior type
+
+- added the display of the rediduals parameters (overall, for each dataset, inside and outside of the transit) in the output
+
+- added the display of the chi^2 in the output
+
+- added two options :
+	"-r" : saves the residuals for the datasets in a text file
+	"-k" : keep the plots in the folder as png files. One can now choose if he wants to display the plots (using "-p"), save them, or both.
+- Outputs the mean and standard deviation parameters for all the residuals. Useful when working with multiple datasets.
+- Outputs the standard deviation of the residuals during, and outside of the transit, for each dataset.
+
+- added the "--output" option that allows to choose the directory where the plots and residuals files are saved. By default it is the current directory.
+
+- fixed the plots that did not display
+
+Changes on 28/04/2021:
 
 The calibration priors now include a center time. the associated prior in the priors file is "dnntc", where "nn" is the number of the dataset. This time has to be fixed to a constant. If no calibration prior is given, the center time is computed from the planet priors.
 
@@ -7,3 +25,7 @@ Output files have changed. Now we have one csv file for each dadaset with (for e
 - added one option : "--basename" : gives a root basename for the files that imply all the datasets : global RV plot, corner plot, residuals histogram
 
 - files related to only one dataset (individual RV plot and csv output) now take for base the name of the corresponding input file (only taking alphanumerical characters, dashes and underscores to avoid issues in file naming).
+
+Changes on 21/05/2021:
+
+Added a new variable : phi0 . It is the time of periastron for the keplerian orbit. In a priors file, it has to be included just below tau. Before this version, the time of periastron was equal to the time for the center of transit, which caused issues for adjustment because of a bad positionning of the keplerian.
