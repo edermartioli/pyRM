@@ -28,4 +28,16 @@ Output files have changed. Now we have one csv file for each dadaset with (for e
 
 Changes on 21/05/2021:
 
-Added a new variable : phi0 . It is the time of periastron for the keplerian orbit. In a priors file, it has to be included just below tau. Before this version, the time of periastron was equal to the time for the center of transit, which caused issues for adjustment because of a bad positionning of the keplerian.
+- Added a new variable : phi0 . It is the time of periastron for the keplerian orbit. In a priors file, it has to be included just below tau. Before this version, the time of periastron was equal to the time for the center of transit, which caused issues for adjustment because of a bad positionning of the keplerian.
+
+Changes on 27/05/2021 :
+
+Adds two options for the alldatasets plot : 
+--timerange that adds enlarge the time scale on each side of the plot by the value entered (in days)
+--res that modifies the resolution of the plot model (but not the values of the adjustment!!). It can be set to very high (vh), high (h), medium (m, which is the default value), low (l), very low (vl) and extremely low (el). This parameter allows to earn computation time when plotting by changing the time step of the plotting (in order : 1/2 sec, 1 sec, 30 sec, 2 mn, 5 mn, 30 mn).
+
+Added an option for all the plots : --format that allows to set the format of the plots. By default it is png, but of course it can be set to pdf, jpg etc.
+
+Outputs a text file with the output planet and calibration parameters, the dispersion for each dataset and the chi^2
+Fixed a bug that caused issues for the output data file if dealing with multiple datasets
+Fixed some functions to avoid getting errors in the computation of the dispersions

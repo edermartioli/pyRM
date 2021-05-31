@@ -55,9 +55,23 @@ def gfunction(x,etap,gamma):
 # ### derivee vitesse keplerienne car passage transit lorsque dvrad <0
 #
 
-def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps,e,anovraie):
+def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps, e, t, T0, tp):
 
+    #computes anovraie relative to center of transit time
+    phase0=((t-T0)%tp)/tp
+    phase=np.where(np.less(phase0,0),phase0+1,phase0)
+
+    anomoy=2.*np.pi*phase
+    anoexc=anomoy*1.
+
+    anoexc1=anoexc+(anomoy+e*np.sin(anoexc)-anoexc)/(1.-e*np.cos(anoexc))
+    while np.max(np.abs(anoexc1-anoexc)) > 1.e-8:
+        anoexc=anoexc1*1.
+        anoexc1=anoexc+(anomoy+e*np.sin(anoexc)-anoexc)/(1.-e*np.cos(anoexc))
+
+    anovraie=2.*np.arctan(np.sqrt((1.+e)/(1.-e))*np.tan(anoexc/2.))
     
+    #computes RM anomaly relative to the anovraie
     rp=(aratio)*(1.-e**2)/((1.+e*np.cos(anovraie)))
     xp=rp*(-np.cos(lbda)*np.sin(anovraie+omega)-np.sin(lbda)*np.cos(i)*np.cos(anovraie+omega))
     zp=rp*(np.sin(lbda)*np.sin(anovraie+omega)-np.cos(lbda)*np.cos(i)*np.cos(anovraie+omega))
@@ -77,7 +91,7 @@ def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps,e,anovraie):
         # mu = np.sqrt(1-R[j]**2)
         # print ("MU",mu)
     ## Ingress Phase and Egress phase:
-        if (R[j]>ind1) and (R[j]<ind2) and dvrad[j]<0.:
+        if (R[j]>ind1) and (R[j]<ind2) and dvrad[j] < 0.:
             n_p=R[j]-1.
             x0=1.-(g2-n_p**2)/(2.*(1.+n_p))
             z0=np.sqrt(1.-x0**2)
@@ -90,7 +104,7 @@ def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps,e,anovraie):
             v[j]=-1.*(Vs)*xp[j]*((1.-eps)*(-1.*z0*zeta+g2*np.arccos(zeta/g))+(eps*w4/(1.+n_p)))/(np.pi*(1.-(1./3.)*eps)-(1.-eps)*(np.arcsin(z0)-(1.+n_p)*z0+g2*np.arccos(zeta/g))-eps*w3)
 
     ## Complete transit phase:
-        if (R[j]<ind1) and dvrad[j]<0.:
+        if (R[j]<ind1) and dvrad[j] < 0. :
     #while (R[j]<ind1):
             n_p=R[j]-1.
 
@@ -153,7 +167,7 @@ def rv_model(planet_params, bjd) :
 
     dvrad = np.concatenate((np.array([vrad[1]-vrad[0]]),vrad[1:]-vrad[:-1]))
     
-    rm_effect = RManomaly(dvrad, lambdap, vsini, a_R, inc, r_R, omega_rm, ldc, ecc, anovraie)
+    rm_effect = RManomaly(dvrad, lambdap, vsini, a_R, inc, r_R, omega_rm, ldc, ecc, bjd, tau, per)
 
     return (vrad + rm_effect)
 
@@ -225,7 +239,7 @@ def lnprior(theta_priors, theta, labels):
 
 
 #make a pairs plot from MCMC output
-def pairs_plot(samples, labels, calib_params, planet_params, bn = '', p = False, k = False, od = '', output='', addlabels=True) :
+def pairs_plot(samples, labels, calib_params, planet_params,fmt, bn = '', p = False, k = False, od = '', output='', addlabels=True) :
     truths=[]
     font = {'size': 15}
     matplotlib.rc('font', **font)
@@ -257,7 +271,7 @@ def pairs_plot(samples, labels, calib_params, planet_params, bn = '', p = False,
     else :
         fig = corner.corner(samples, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84],truths=truths)
     if k :
-        plt.savefig(od+bn+"_pairsplot.png", format = 'png')
+        plt.savefig(od+bn+"_pairsplot."+fmt, format = fmt)
     if p :
         plt.show()
     if output != '' :
@@ -299,7 +313,7 @@ def best_fit_params(params, free_param_labels, samples, use_mean=False, verbose 
 
 
 #plot model and data
-def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_calib_params, samples, labels, theta_priors, inf='', p = False, k = False, od='', bjd_limits=[], detach_calib=False) :
+def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_calib_params, samples, labels, theta_priors, fmt, inf='', p = False, k = False, od='', bjd_limits=[], detach_calib=False) :
 
     plt.subplot(211)
     
@@ -377,12 +391,12 @@ def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_cal
     plt.legend()
     
     if k :
-        plt.savefig(od+inf+"_plot_RV"+".png", format = 'png')
+        plt.savefig(od+inf+"_plot_RV"+"."+fmt, format = fmt)
     if p:
         plt.show()
 
 
-def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_priors,bn, inf='', p = False, k = False, r = False, od='', output="") :
+def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_priors,bn, fmt, inf='', p = False, k = False, r = False, od='', output="") :
     
     plt_colors = ['orange','olive', 'brown', 'red', 'purple', 'cyan', 'pink', 'gray', 'blue', 'green']
     
@@ -416,6 +430,7 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
     global_residuals = []
     
     if r:
+        #writing a file with all the adjusted data
         inputdata = sorted(glob.glob(inf))
         for i in range(len(bjd)):
             f = open(inputdata[i],'r')
@@ -430,6 +445,8 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
             writer = csv.writer(g, delimiter = "\t")
             
             calib = calib_model(len(bjd), i, calib_params, bjd[i])
+            rvcurve = rv_model(planet_params, bjd[i])
+            modelrv = calib + rvcurve
             
             per = planet_params['per']
             tau = planet_params['tau']
@@ -442,15 +459,15 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
             l = f.readline().split()
             l += ['model','kepler','RM','calib','residual']
             writer.writerow(l)
-            f.readline()
             for k in range(len(bjd[i])):
                 l = f.readline().split()
-                l.append(modelrv[k])
-                l.append(keplerian[0][k])
-                l.append(rvcurve[k]-keplerian[0][k])
-                l.append(calib[k])
-                l.append(residuals[i][k])
-                writer.writerow(l)
+                if (not("---" in l[0])):
+                    l.append(modelrv[k])
+                    l.append(keplerian[0][k])
+                    l.append(rvcurve[k]-keplerian[0][k])
+                    l.append(calib[k])
+                    l.append(residuals[i][k])
+                    writer.writerow(l)
             f.close()
             g.close()
 
@@ -470,9 +487,11 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
 
     textstr = plot_histogram_of_residuals(global_residuals, binBoundaries, datasetlabel="ALL datasets", fill=True) + textstr1
     
-    print("normal_calibrated models :")
+    h = open(od+"Parameters output.txt",'a')
+    h.write("normal_calibrated models :\n")
     
     print(textstr1)
+    
 
     plt.text(-0.03, 0.20, textstr, fontsize=10, bbox=dict(facecolor='none', edgecolor='gray'))
 
@@ -485,28 +504,44 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
         fig1.savefig(output, facecolor='white')   # save the figure to file
     else :
         if k:
-            plt.savefig(od+bn+"_plot_residuals.png", format = 'png')
+            plt.savefig(od+bn+"_plot_residuals."+fmt, format = fmt)
         if p:
             plt.show()
     plt.close(fig1)
     
     def avg(L):
-        return (sum(L) / len(L))
+        if(len(L))!= 0:
+            return (sum(L) / len(L))
+        else:
+            print(str(L)+" is empty")
+            return
     
     def std(L):
-        L_V = sum([((x - avg(L)) ** 2) for x in L]) / len(L)
-        return (L_V ** 0.5)
+        if len(L) == 0:
+            print(str(L)+" is empty")
+            return
+        else:
+            L_V = sum([((x - avg(L)) ** 2) for x in L]) / len(L)
+            return (L_V ** 0.5)
     
     chi2 = 0
     print("Parameters mean :")
-    print("mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s")
+    if (avg(global_residuals) is float):
+        print("mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s")
+        h.write("Parameters mean :\n"+"mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s\n")
     for i in range(len(residuals)):
-        print("std of dataset "+str(i)+" during transit : "+str(round(std(res_in_transit[i])*1e3,2))+" m/s")
-        print("std of dataset "+str(i)+" out of transit : "+str(round(std(res_off_transit[i])*1e3,2))+" m/s")
+        if(std(res_in_transit[i]) is float):
+            print("std of dataset "+str(i)+" during transit : "+str(round(std(res_in_transit[i])*1e3,2))+" m/s")
+            h.write("std of dataset "+str(i)+" during transit : "+str(round(std(res_in_transit[i])*1e3,2))+" m/s\n")
+        if(std(res_off_transit[i]) is float):
+            print("std of dataset "+str(i)+" out of transit : "+str(round(std(res_off_transit[i])*1e3,2))+" m/s")
+            h.write("std of dataset "+str(i)+" out of transit : "+str(round(std(res_off_transit[i])*1e3,2))+" m/s\n")
         for j in range(len(residuals[i])):
             chi2 += (residuals[i][j]**2)/(rverrs[i][j]**2)
         
     print('chi2 = '+str(chi2))
+    h.write('chi2 = '+str(chi2))
+    h.close()
 
 def plot_histogram_of_residuals(residuals, binBoundaries, datasetlabel='', color="blue", fill=False) :
     weights = np.ones_like(residuals)/float(len(residuals))
@@ -552,7 +587,7 @@ def transit_duration(planet_params):
     return abs_value
 
 
-def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params, samples, labels, theta_priors, bn='', p = False, k = False, od = '', dt_before=0., dt_after=0.) :
+def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params, samples, labels, theta_priors, dt_before, dt_after, fmt, res, bn='', p = False, k = False, od = '') :
     
     font = {'size': 16}
     matplotlib.rc('font', **font)
@@ -592,7 +627,20 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
         ax1.errorbar(time_from_center, rvs[i]-calib, yerr=rverrs[i], lw=0.7, fmt='o', color=color, ms=5, drawstyle='default', alpha=0.8, label=r"T$_{0}$={1:.4f} BJD".format(i,tc))
     copy_planet_params = deepcopy(planet_params)
     
-    time_step = 1 / (60 * 60 * 24) # 1 second in unit of days
+    if res == "vh" :
+        time_step = 1 / (60 * 60 * 48) # 1/2 second in unit of days
+    elif res == "h":
+        time_step = 1 / (60 * 60 * 24) # 1 second in unit of days
+    elif res == "m":
+        time_step = 1 / (60 * 48) # 30 seconds in unit of days
+    elif res == "l":
+        time_step = 1 / (30 * 24) # 2 minutes in unit of days
+    elif res == "vl" :
+        time_step = 1 / (12 * 24) # 5 minutes in unit of days
+    elif res == "el" :
+        time_step = 1 / (48) # 30 minutes in unit of days
+    else :
+        time_step = 1 / (60 * 48) # 30 seconds in unit of days
     model_time = np.arange(min_time - dt_before, max_time+time_step + dt_after, time_step)
     model_bjd = deepcopy(model_time) + ref_tc
 
@@ -645,7 +693,7 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
     ax2.set_ylabel(r"Residuals [km/s]")
 
     if k :
-        plt.savefig(od+bn+"_alldatasets.png", format='png')
+        plt.savefig(od+bn+"_alldatasets."+fmt, format = fmt)
        
     if p :
         plt.show()

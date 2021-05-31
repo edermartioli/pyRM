@@ -48,6 +48,9 @@ parser.add_option("-p", action="store_true", dest="plot", help="plot", default=F
 parser.add_option("-v", action="store_true", dest="verbose", help="verbose", default=False)
 parser.add_option("-k", action="store_true", dest="save_plots", help="save_plots", default=False)
 parser.add_option("-r", action="store_true", dest="save_residuals", help="save_residuals", default=False)
+parser.add_option("-g", "--timerange", dest="timerange", help="add time range for alldatasets plot (in days)",type='string',default="0")
+parser.add_option("-f", "--format", dest="fmt", help="format of the outpur plots",type='string',default="png")
+parser.add_option("-l", "--res", dest="res", help="alldataset plot resolution",type='string',default="m")
 
 try:
     options,args = parser.parse_args(sys.argv[1:])
@@ -69,6 +72,9 @@ if options.verbose:
 calib_order = int(options.calib_order)
 od = options.output
 inf = options.input
+tr = float(options.timerange)
+fmt = options.fmt
+res = options.res
 
 planet_posterior = (options.exoplanet_priors).replace(".pars", "_posterior.pars")
 if options.verbose:
@@ -200,33 +206,45 @@ calib_params, calib_theta_fit, calib_theta_labels, calib_theta_err = rm_lib.best
 # Obtain best fit planet parameters from pdfs
 planet_params, planet_theta_fit, planet_theta_labels, planet_theta_err = rm_lib.best_fit_params(planet_params, labels, samples)
 
-# print out best fit parameters and errors
-if options.verbose:
-    print("----------------")
-    print("PLANET Fit parameters:")
-    for i in range(len(planet_theta_fit)) :
-        print(planet_theta_labels[i], "=", planet_theta_fit[i], "+", planet_theta_err[i][0], "-", planet_theta_err[i][1])
-
-    print("----------------")
-    print("CALIBRATION Fit parameters:")
-    for i in range(len(calib_theta_fit)) :
-        print(calib_theta_labels[i], "=", calib_theta_fit[i], "+", calib_theta_err[i][0], "-", calib_theta_err[i][1])
-    print("----------------")
-
-bjd_limits=[]
-
 p = options.plot
 k = options.save_plots
 r = options.save_residuals
 
+#saves the output
+if k:
+    f = open(od+"Parameters output.txt",'w')
+    f.truncate(0)
+
+# print out best fit parameters and errors
+if options.verbose:
+    print("----------------")
+    print("PLANET Fit parameters:")
+    f.write("PLANET Fit parameters:\n")
+    for i in range(len(planet_theta_fit)) :
+        print(planet_theta_labels[i], "=", planet_theta_fit[i], "+", planet_theta_err[i][0], "-", planet_theta_err[i][1])
+        f.write(str(planet_theta_labels[i])+" = " +str(planet_theta_fit[i])+" + "+str(planet_theta_err[i][0])+" - "+str(planet_theta_err[i][1])+"\n")
+
+    print("----------------")
+    f.write("----------------\n")
+    print("CALIBRATION Fit parameters:")
+    f.write("CALIBRATION Fit parameters:\n")
+    for i in range(len(calib_theta_fit)) :
+        print(calib_theta_labels[i], "=", calib_theta_fit[i], "+", calib_theta_err[i][0], "-", calib_theta_err[i][1])
+        f.write(str(calib_theta_labels[i])+" = "+str(calib_theta_fit[i])+" + "+str(calib_theta_err[i][0])+" - "+str(calib_theta_err[i][1])+'\n')
+    print("----------------")
+    f.write("----------------\n")
+
+bjd_limits=[]
+
+
 if p or k :
     print("Plotting :")
     #plot all data sets
-    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels, theta_priors,bn, p, k, od)
+    rm_lib.plot_all_datasets(bjd, rvs, rverrs, planet_params, calib_params, samples, labels, theta_priors, tr, tr, fmt, res, bn, p, k, od)
 
     # plot each dataset with the best model
     for i in range(len(bjd)) :
-        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels, theta_priors,inf, p, k, od, bjd_limits=bjd_limits, detach_calib=False)
+        rm_lib.plot_individual_datasets(bjd, rvs, rverrs, i, planet_params, calib_params, samples, labels, theta_priors, fmt,inf, p, k, od, bjd_limits=bjd_limits, detach_calib=False)
 
 # save posterior of planet parameters into file:
 priorslib.save_posterior(planet_posterior, planet_params, planet_theta_fit, planet_theta_labels, planet_theta_err)
@@ -237,12 +255,14 @@ priorslib.save_posterior(calib_posterior, calib_params, calib_theta_fit, calib_t
 
 if p or k :
     #- make a pairs plot from MCMC output:
-    rm_lib.pairs_plot(samples, labels, calib_params, planet_params,bn, p, k, od)
+    rm_lib.pairs_plot(samples, labels, calib_params, planet_params, fmt, bn, p, k, od)
     #--------
 
 if p or k or r:
     #- perform analysis of residuals:
     print("----------------")
     print("Running Analysis of residuals:")
-    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_priors, bn, inf, p, k, r, od, output="")
+    f.write("Analysis of residuals :\n----------------\n")
+    f.close()
+    rm_lib.analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_priors, bn, fmt, inf, p, k, r, od, output="")
     #--------
