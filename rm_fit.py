@@ -212,7 +212,7 @@ r = options.save_residuals
 
 #saves the output
 if k:
-    f = open(od+"Parameters output.txt",'w')
+    f = open(od+bn+"Parameters output.txt",'w')
     f.truncate(0)
 
 # print out best fit parameters and errors

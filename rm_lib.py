@@ -487,7 +487,7 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
 
     textstr = plot_histogram_of_residuals(global_residuals, binBoundaries, datasetlabel="ALL datasets", fill=True) + textstr1
     
-    h = open(od+"Parameters output.txt",'a')
+    h = open(od+bn+"Parameters output.txt",'a')
     h.write("normal_calibrated models :\n")
     
     print(textstr1)
@@ -526,11 +526,11 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
     
     chi2 = 0
     print("Parameters mean :")
-    if (avg(global_residuals) is float):
+    if len(global_residuals) != 0 :
         print("mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s")
         h.write("Parameters mean :\n"+"mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s\n")
     for i in range(len(residuals)):
-        if(std(res_in_transit[i]) is float):
+        if len(res_in_transit[i]) != 0:
             print("std of dataset "+str(i)+" during transit : "+str(round(std(res_in_transit[i])*1e3,2))+" m/s")
             h.write("std of dataset "+str(i)+" during transit : "+str(round(std(res_in_transit[i])*1e3,2))+" m/s\n")
         if(std(res_off_transit[i]) is float):
@@ -602,6 +602,7 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
 
     ref_tc = 0
     
+    
     colors = ["tab:blue","tab:orange","tab:green","tab:red","tab:purple","tab:brown","tab:olive","darkblue","teal", "indigo", "orangered", "red", "blue", "green", "grey"]
     
     for i in range(len(bjd)) :
@@ -650,8 +651,19 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
         ax1.plot(model_time, modelrv, color='red', lw=0.2, alpha=0.2)
 
     final_model = rv_model(planet_params, model_bjd)
+    
+    per = planet_params['per']
+    phi0 = planet_params['phi0']
+    k = planet_params['k']
+    omega = planet_params['omega'] * np.pi / 180.
+    ecc = planet_params['ecc']
+    rv0 = planet_params['rv0']
+    
+    keplerian = vradfction(model_bjd, k, per, omega, phi0, rv0, ecc)
+    vrad = keplerian[0]
 
     ax1.plot(model_time, final_model, label='Fit model', color="green", lw=2)
+    ax1.plot(model_time, vrad,"c--", label='Keplerian model', lw=1, alpha=0.8)
 
     tt = transit_duration(planet_params)
     ti = - tt/2
@@ -663,7 +675,7 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
 
     #plt.xlabel(r"Time from center of transit [days]")
     ax1.set_ylabel(r"Radial Velocity [km/s]")
-    ax1.legend(fontsize=12)
+    ax1.legend(fontsize=8)
 
     for i in range(len(bjd)) :
         if i > 14 :
