@@ -28,6 +28,23 @@ import priorslib
 import glob
 
 def vradfction(t,k,tp,omega,T0,V0,e):
+    """
+
+    Parameters
+    ----------
+    t : array of times
+    k : semi amplitude
+    tp : period
+    omega : argument of periastron
+    T0 : Time of periastron
+    V0 : Systemic velocity
+    e : eccentricity
+
+    Returns
+    -------
+    list of RV, list of phases, list of anomalies
+
+    """
 
     phase0=((t-T0)%tp)/tp
     phase=np.where(np.less(phase0,0),phase0+1,phase0)
@@ -44,7 +61,7 @@ def vradfction(t,k,tp,omega,T0,V0,e):
 
     vrad=V0+k*(np.cos(anovraie+omega)+e*np.cos(omega))
     
-    return [vrad,phase,anovraie]
+    return [vrad,phase,anovraie,t]
 
 
 def gfunction(x,etap,gamma):
@@ -55,10 +72,32 @@ def gfunction(x,etap,gamma):
 # ### derivee vitesse keplerienne car passage transit lorsque dvrad <0
 #
 
-def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps, e, t, T0, tp):
+def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps, e, anovraie, tp, T0, t, phi0):
+    """
+    Parameters
+    ----------
+    dvrad : derivative of the RV
+    lbda : obliquity
+    Vs : vsini : rotation velocity
+    aratio : semi major axis in stellar radius
+    i : inclination
+    Rratio : radius ratio
+    omega : argument of periastron used in the computation of the RM anomaly (actually same as orbital omega)
+    eps : limb darkening coefficient
+    e : eccentricity
+    anovraie : array of real anomalies
 
-    #computes anovraie relative to center of transit time
-    phase0=((t-T0)%tp)/tp
+    Returns
+    -------
+    v : array of RM anomalies
+    
+    """
+    
+    #offsetting omega because of Ohta specific convention
+    omega=omega+np.pi/2
+    
+    #computing the anomaly for T0
+    phase0=((T0-phi0)%tp)/tp
     phase=np.where(np.less(phase0,0),phase0+1,phase0)
 
     anomoy=2.*np.pi*phase
@@ -68,16 +107,21 @@ def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps, e, t, T0, tp):
     while np.max(np.abs(anoexc1-anoexc)) > 1.e-8:
         anoexc=anoexc1*1.
         anoexc1=anoexc+(anomoy+e*np.sin(anoexc)-anoexc)/(1.-e*np.cos(anoexc))
-
-    anovraie=2.*np.arctan(np.sqrt((1.+e)/(1.-e))*np.tan(anoexc/2.))
+        
+    anovraiep=2.*np.arctan(np.sqrt((1.+e)/(1.-e))*np.tan(anoexc/2.))
     
-    #computes RM anomaly relative to the anovraie
-    rp=(aratio)*(1.-e**2)/((1.+e*np.cos(anovraie)))
+    #anomaly offset to give in order to properly center the transit
+    offset = anovraiep-anovraie[np.argmin(np.abs(anovraie+omega-np.pi))]
+    
+    #offsetting
+    anovraie -= offset
+
+    #computes planet position relative to the anovraie
+    rp=(aratio)*(1.-e**2)/(1.+e*np.cos(anovraie))
     xp=rp*(-np.cos(lbda)*np.sin(anovraie+omega)-np.sin(lbda)*np.cos(i)*np.cos(anovraie+omega))
     zp=rp*(np.sin(lbda)*np.sin(anovraie+omega)-np.cos(lbda)*np.cos(i)*np.cos(anovraie+omega))
     R=np.sqrt(xp**2+zp**2)
-
-
+    
     #### RV anomaly computation
 
     ind1=1.-Rratio
@@ -85,13 +129,11 @@ def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps, e, t, T0, tp):
     g=Rratio
     g2=(Rratio)**2
     v=np.zeros(len(R),'d')
-
+    
 
     for j in range(len(R)):
-        # mu = np.sqrt(1-R[j]**2)
-        # print ("MU",mu)
     ## Ingress Phase and Egress phase:
-        if (R[j]>ind1) and (R[j]<ind2) and dvrad[j] < 0.:
+        if (R[j]>ind1) and (R[j]<ind2) and (dvrad[j] < 0.):
             n_p=R[j]-1.
             x0=1.-(g2-n_p**2)/(2.*(1.+n_p))
             z0=np.sqrt(1.-x0**2)
@@ -105,6 +147,7 @@ def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps, e, t, T0, tp):
 
     ## Complete transit phase:
         if (R[j]<ind1) and dvrad[j] < 0. :
+
     #while (R[j]<ind1):
             n_p=R[j]-1.
 
@@ -118,31 +161,52 @@ def RManomaly(dvrad,lbda,Vs,aratio,i,Rratio,omega,eps, e, t, T0, tp):
 
     ## Outside transit phase:
         if R[j]>ind2:
+
     #while (R[j]>ind2):
             v[j]=0.
     return v
 
-
 def calib_model(n, i, params, bjd) :
-    ncoefs = (len(params)-n)// n
+    """
     
+
+    Parameters
+    ----------
+    n : number of datasets
+    i : number of the current dataset
+    params : dictionnary of calibration parameters
+    bjd : array of times
+
+    Returns
+    -------
+    out_model : array of calibration values
+
+    """
+    #setting the center time for the polynomial computation
+    
+    ncoefs = (len(params)-n)// n
     coefs = []
     relative_bjd = []
     to_id = 'd{0:02d}tc'.format(i)
     tc = params[to_id]
     
+    #loading the coefficients from the input calibration parameters
+    
     for c in range(int(ncoefs)):
         coeff_id = 'd{0:02d}c{1:1d}'.format(i,c)
         coefs.append(params[coeff_id])
     
+    #computing the calibration polynomial
     for j in range(len(bjd)):
             relative_bjd.append(bjd[j]-tc)
     p = np.poly1d(np.flip(coefs))
     out_model = p(relative_bjd)
+    
     return out_model
 
 def rv_model(planet_params, bjd) :
     
+    #loading the parameters
     per = planet_params['per']
     tau = planet_params['tau']
     phi0 = planet_params['phi0']
@@ -158,16 +222,16 @@ def rv_model(planet_params, bjd) :
     omega_rm = planet_params['omega_rm'] * np.pi / 180.
     ldc = planet_params['ldc']
     
-    model = []
-
+    #computing the keplerian part
     keplerian = vradfction(bjd, k, per, omega, phi0, rv0, ecc)
+    
+    #loading the necessary for the computation of the RM effect
     vrad = keplerian[0]
-
     anovraie = keplerian[2]
-
     dvrad = np.concatenate((np.array([vrad[1]-vrad[0]]),vrad[1:]-vrad[:-1]))
     
-    rm_effect = RManomaly(dvrad, lambdap, vsini, a_R, inc, r_R, omega_rm, ldc, ecc, bjd, tau, per)
+    #Computing the RM part
+    rm_effect = RManomaly(dvrad, lambdap, vsini, a_R, inc, r_R, omega_rm, ldc, ecc, anovraie, per, tau, bjd, phi0)
 
     return (vrad + rm_effect)
 
@@ -230,7 +294,7 @@ def lnprior(theta_priors, theta, labels):
 
     total_prior = 0.0
     for i in range(len(theta)) :
-        #theta_priors[labels[i]]['object'].set_value(theta[i])
+        #Rejecting values that can be tested through a binary test "checkvalue()
         if theta_priors[labels[i]]['type'] == "Uniform" or theta_priors[labels[i]]['type'] == "Jeffreys" or theta_priors[labels[i]]['type'] == "Normal_positive" :
             if not theta_priors[labels[i]]['object'].check_value(theta[i]):
                 return -np.inf
@@ -240,6 +304,21 @@ def lnprior(theta_priors, theta, labels):
 
 #make a pairs plot from MCMC output
 def pairs_plot(samples, labels, calib_params, planet_params,fmt, bn = '', p = False, k = False, od = '', output='', addlabels=True) :
+    """    
+
+    New Parameters
+    ----------
+    fmt : format of the plots
+    bn : basename for the plots
+    p : boolean for plotting or not
+    k : boolean for saving the plots or not
+    od : output directory
+    
+    Returns
+    -------
+    None.
+
+    """
     truths=[]
     font = {'size': 15}
     matplotlib.rc('font', **font)
@@ -260,9 +339,9 @@ def pairs_plot(samples, labels, calib_params, planet_params,fmt, bn = '', p = Fa
         elif lab == "tau":
             newlabels.append(r"T$_{c}$ [d]")
         elif lab == "d00c1":
-            newlabels.append(r"$\gamma$ [km/s]")
+            newlabels.append(r"$\alpha$ [km/s]")
         elif lab == "d00c0":
-            newlabels.append(r"$\alpha$ [km/s/d]")
+            newlabels.append(r"$\gamma$ [km/s/d]")
         else :
             newlabels.append(lab)
     
@@ -314,6 +393,20 @@ def best_fit_params(params, free_param_labels, samples, use_mean=False, verbose 
 
 #plot model and data
 def plot_individual_datasets(bjd, rvs, rverrs, i, input_planet_params, input_calib_params, samples, labels, theta_priors, fmt, inf='', p = False, k = False, od='', bjd_limits=[], detach_calib=False) :
+    """
+    
+    New Parameters
+    ----------
+    fmt : format of the plots
+    p : boolean for plotting or not
+    k : boolean for saving the plots or not
+    od : output directory
+    
+    Returns
+    -------
+    None.
+    
+    """
 
     plt.subplot(211)
     
@@ -408,7 +501,7 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
     ti = - tt/2
     te = tt/2
     
-    
+    #separating the residuals that are considered into the transit and those outside
     for i in range(len(bjd)) :
         calib = calib_model(len(bjd), i, calib_params, bjd[i])
         rvcurve = rv_model(planet_params, bjd[i])
@@ -431,8 +524,10 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
     
     if r:
         #writing a file with all the adjusted data
+        
         inputdata = sorted(glob.glob(inf))
         for i in range(len(bjd)):
+            #reading the data file and naming the corresponding output file
             f = open(inputdata[i],'r')
             inf = ""
             for char in inputdata[i].rsplit('/')[-1]:
@@ -444,21 +539,25 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
             g.truncate(0)
             writer = csv.writer(g, delimiter = "\t")
             
+            #computing the various contributions
             calib = calib_model(len(bjd), i, calib_params, bjd[i])
             rvcurve = rv_model(planet_params, bjd[i])
             modelrv = calib + rvcurve
             
             per = planet_params['per']
-            tau = planet_params['tau']
             phi0 = planet_params['phi0']
             k = planet_params['k']
             omega = planet_params['omega'] * np.pi / 180.
             ecc = planet_params['ecc']
             rv0 = planet_params['rv0']
             keplerian = vradfction(bjd[i], k, per, omega, phi0, rv0, ecc)
+            
+            #adding headlines
             l = f.readline().split()
             l += ['model','kepler','RM','calib','residual']
             writer.writerow(l)
+            
+            #adding columns
             for k in range(len(bjd[i])):
                 l = f.readline().split()
                 if (not("---" in l[0])):
@@ -470,7 +569,7 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
                     writer.writerow(l)
             f.close()
             g.close()
-
+     
     for i in range(len(residuals)) :
         global_residuals = np.append(global_residuals,residuals[i])
 
@@ -487,8 +586,6 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
 
     textstr = plot_histogram_of_residuals(global_residuals, binBoundaries, datasetlabel="ALL datasets", fill=True) + textstr1
     
-    h = open(od+bn+"Parameters output.txt",'a')
-    h.write("normal_calibrated models :\n")
     
     print(textstr1)
     
@@ -502,6 +599,8 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
 
     if output != "":
         fig1.savefig(output, facecolor='white')   # save the figure to file
+    
+    #saving the figure or plotting it
     else :
         if k:
             plt.savefig(od+bn+"_plot_residuals."+fmt, format = fmt)
@@ -509,6 +608,9 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
             plt.show()
     plt.close(fig1)
     
+    #computing chi^2 and detailed residuals, and saving them in the output parameters file
+    
+    #side functions
     def avg(L):
         if(len(L))!= 0:
             return (sum(L) / len(L))
@@ -524,11 +626,16 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
             L_V = sum([((x - avg(L)) ** 2) for x in L]) / len(L)
             return (L_V ** 0.5)
     
+    h = open(od+bn+"Parameters output.txt",'a')
+    
+ 
+    #overall residuals and chi^2
     chi2 = 0
     print("Parameters mean :")
     if len(global_residuals) != 0 :
         print("mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s")
         h.write("Parameters mean :\n"+"mean : "+ str(round(avg(global_residuals)*1e3,2))+" m/s , sigma : "+ str(round(std(global_residuals)*1e3,2))+" m/s\n")
+    #specific residuals
     for i in range(len(residuals)):
         if len(res_in_transit[i]) != 0:
             print("std of dataset "+str(i)+" during transit : "+str(round(std(res_in_transit[i])*1e3,2))+" m/s")
@@ -588,7 +695,15 @@ def transit_duration(planet_params):
 
 
 def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params, samples, labels, theta_priors, dt_before, dt_after, fmt, res, bn='', p = False, k = False, od = '') :
-    
+    """
+    added parameters :
+        fmt : format of the plot
+        res : resolution of the plot
+        bn='' : basename of the plot
+        p = False : for plotting
+        k = False : for keeping the plot
+        od = '' : name of the output directory
+    """
     font = {'size': 16}
     matplotlib.rc('font', **font)
 
@@ -602,7 +717,6 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
 
     ref_tc = 0
     
-    
     colors = ["tab:blue","tab:orange","tab:green","tab:red","tab:purple","tab:brown","tab:olive","darkblue","teal", "indigo", "orangered", "red", "blue", "green", "grey"]
     
     for i in range(len(bjd)) :
@@ -610,6 +724,7 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
             color = [i/len(bjd),1-i/len(bjd),1-i/len(bjd)]
         else :
             color = colors[i]
+            
         #calculate predicted center of transit for the first data set
         epoch = round((bjd[i][0] - planet_params['tau']) / (planet_params['per']))
         tc = + planet_params['tau'] + epoch * planet_params['per']
@@ -627,7 +742,7 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
         #ax1.errorbar(time_from_center, rvs[i]-calib, yerr=rverrs[i], lw=0.7, fmt='o', color='k', ms=5, drawstyle='default', alpha=0.8)
         ax1.errorbar(time_from_center, rvs[i]-calib, yerr=rverrs[i], lw=0.7, fmt='o', color=color, ms=5, drawstyle='default', alpha=0.8, label=r"T$_{0}$={1:.4f} BJD".format(i,tc))
     copy_planet_params = deepcopy(planet_params)
-    
+
     if res == "vh" :
         time_step = 1 / (60 * 60 * 48) # 1/2 second in unit of days
     elif res == "h":
@@ -644,13 +759,13 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
         time_step = 1 / (60 * 48) # 30 seconds in unit of days
     model_time = np.arange(min_time - dt_before, max_time+time_step + dt_after, time_step)
     model_bjd = deepcopy(model_time) + ref_tc
-
     for theta in samples[np.random.randint(len(samples), size=100)]:
         copy_planet_params = updateParams(copy_planet_params, theta, labels)
         modelrv = rv_model(copy_planet_params, model_bjd)
         ax1.plot(model_time, modelrv, color='red', lw=0.2, alpha=0.2)
-
     final_model = rv_model(planet_params, model_bjd)
+    
+    #computing the keplerian adjusted model
     
     per = planet_params['per']
     phi0 = planet_params['phi0']
@@ -661,7 +776,8 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
     
     keplerian = vradfction(model_bjd, k, per, omega, phi0, rv0, ecc)
     vrad = keplerian[0]
-
+    
+    #plotting both the keplerian and kaplerian+RM model
     ax1.plot(model_time, final_model, label='Fit model', color="green", lw=2)
     ax1.plot(model_time, vrad,"c--", label='Keplerian model', lw=1, alpha=0.8)
 
@@ -703,7 +819,8 @@ def plot_all_datasets(bjd, rvs, rverrs, input_planet_params, input_calib_params,
     ax2.set_xlabel(r"Time from center of transit [days]")
     matplotlib.rc('font', **font)
     ax2.set_ylabel(r"Residuals [km/s]")
-
+    
+    #saving or keeping the plots
     if k :
         plt.savefig(od+bn+"_alldatasets."+fmt, format = fmt)
        

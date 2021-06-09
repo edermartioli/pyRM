@@ -69,12 +69,16 @@ if options.verbose:
     print('MCMC samples file name: ', options.samples_filename)
     print('output directory : ', options.output)
 
+#load the input variables
 calib_order = int(options.calib_order)
 od = options.output
 inf = options.input
 tr = float(options.timerange)
 fmt = options.fmt
 res = options.res
+p = options.plot
+k = options.save_plots
+r = options.save_residuals
 
 planet_posterior = (options.exoplanet_priors).replace(".pars", "_posterior.pars")
 if options.verbose:
@@ -91,6 +95,8 @@ if options.verbose:
 # make list of tfits data files
 if options.verbose:
     print("Creating list of RV time series files...")
+
+#reading the basename
 inputdata = sorted(glob.glob(options.input))
 if options.basename != "":
     bn = options.basename
@@ -206,9 +212,7 @@ calib_params, calib_theta_fit, calib_theta_labels, calib_theta_err = rm_lib.best
 # Obtain best fit planet parameters from pdfs
 planet_params, planet_theta_fit, planet_theta_labels, planet_theta_err = rm_lib.best_fit_params(planet_params, labels, samples)
 
-p = options.plot
-k = options.save_plots
-r = options.save_residuals
+
 
 #saves the output
 if k:
