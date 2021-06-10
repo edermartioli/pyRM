@@ -558,15 +558,18 @@ def analysis_of_residuals(bjd, rvs, rverrs, planet_params, calib_params, theta_p
             writer.writerow(l)
             
             #adding columns
+            d = 0
             for k in range(len(bjd[i])):
                 l = f.readline().split()
                 if (not("---" in l[0])):
-                    l.append(modelrv[k])
-                    l.append(keplerian[0][k])
-                    l.append(rvcurve[k]-keplerian[0][k])
-                    l.append(calib[k])
-                    l.append(residuals[i][k])
+                    l.append(modelrv[k-d])
+                    l.append(keplerian[0][k-d])
+                    l.append(rvcurve[k-d]-keplerian[0][k-d])
+                    l.append(calib[k-d])
+                    l.append(residuals[i][k-d])
                     writer.writerow(l)
+                else:
+                    d += 1
             f.close()
             g.close()
      
