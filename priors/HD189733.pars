@@ -9,6 +9,7 @@
 #
 per     FIXED   2.218575200
 tau     Uniform   2453955.520,2453955.528
+phi0	FIXED	2454037.612
 k       FIXED   0.205
 omega   FIXED   90.0
 ecc     FIXED   0.0041
@@ -19,5 +20,5 @@ vsini   Normal_positive  3.316,0.070
 a_R FIXED   8.85592
 inc FIXED   85.300008482573515
 r_R FIXED   0.1581
-omega_rm    FIXED   180
+omega_rm    FIXED   90.
 ldc Uniform -1.0,1.0
