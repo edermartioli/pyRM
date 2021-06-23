@@ -4,7 +4,7 @@
     
     Description: Priors library
     
-    @author: Eder Martioli <martioli@iap.fr>, Shweta Dalal <dalal@iap.fr>
+    @author: Eder Martioli <martioli@iap.fr>, Shweta Dalal <dalal@iap.fr>, Alexandre Teissier
     
     Institut d'Astrophysique de Paris, France.
     
@@ -199,16 +199,14 @@ def read_priors(filename, calibration = False):
     f.close()
 
     if calibration :
-        n_coefs -= 1
-        ndatasets = n_coefs / float(priors['orderOfPolynomial']['object'].value)
+        n_coefs-= 1
+        ndatasets = n_coefs // (1+float(priors['orderOfPolynomial']['object'].value))
         priors["ndatasets"] = generate_parameter(['ndatasets','FIXED',str(ndatasets)])
-        baseorder = priors['orderOfPolynomial']['object'].value
-    
     return priors
 
 def read_exoplanet_params(prior_dict, output_theta_params = False):
 
-    param_ids = ['per','tau','k','omega','ecc','rv0','lambda', 'vsini','a_R','inc','r_R','omega_rm','ldc']
+    param_ids = ['per','tau','phi0','k','omega','ecc','rv0','lambda', 'vsini','a_R','inc','r_R','omega_rm','ldc']
 
     planet_params = {}
     
@@ -234,13 +232,14 @@ def read_exoplanet_params(prior_dict, output_theta_params = False):
 
 def read_calib_params(calib_priors_dict, output_theta_params = False):
 
-    n_coefs = len(calib_priors_dict) - 1.0
     order_of_polynomial = calib_priors_dict['orderOfPolynomial']['object'].value
     ndatasets = calib_priors_dict['ndatasets']['object'].value
 
     calib_params = {}
     
     for i in range(int(ndatasets)):
+        to_id = 'd{0:02d}tc'.format(i)
+        calib_params[to_id] = calib_priors_dict[to_id]['object'].value
         for c in range(int(order_of_polynomial)):
             coeff_id = 'd{0:02d}c{1:1d}'.format(i,c)
             calib_params[coeff_id] = calib_priors_dict[coeff_id]['object'].value
@@ -257,7 +256,7 @@ def read_calib_params(calib_priors_dict, output_theta_params = False):
         return calib_params
 
 #intialize calib parameters
-def init_calib_priors(ndim=1, order=1, coefs=None) :
+def init_calib_priors(tc, ndim=1, order=1, coefs=None) :
     """
         ndim : number of polynomials, typically the number of different datasets
         order:  number of coefficients in the polynomial
@@ -278,6 +277,11 @@ def init_calib_priors(ndim=1, order=1, coefs=None) :
     priors['ndatasets'] = nds_dict
     
     for i in range(int(ndim)):
+        to_id = 'd{0:02d}tc'.format(i)
+        t_dict = {}
+        t_dict['type'] = "FIXED"
+        t_dict['object'] = constant_parameter(tc)
+        priors[to_id] = t_dict
         for c in range(order):
             coeff_id = 'd{0:02d}c{1:1d}'.format(i,c)
             out_dict = {}
